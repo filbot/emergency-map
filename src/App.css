@@ -1,0 +1,29 @@
+.App {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 10vh;
+  background-color: black;
+  color: white;
+}
+
+.map-wrap {
+  flex: 1;
+}
+
+.details-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 30vh;
+  width: 100%;
+  background-color: black;
+  color: white;
+}
