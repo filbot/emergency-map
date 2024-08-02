@@ -14,7 +14,7 @@ export default function Navbar() {
 
     return (
         <div className="heading">
-            <h1>Hero Dashboard</h1>
+            <h1>HERO DASHBOARD</h1>
             <div className="clock">
                 {currentTime.toLocaleTimeString('en-GB', { hour12: false })}
             </div>

@@ -1,12 +1,24 @@
 .heading {
-    margin: 0;
-    padding: 0px;
     background-color: black;
     color: white;
-    text-align: center;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3rem;
 }
 
-.heading > h1 {
-    padding: 20px;
-    margin: 0;
+.heading h1 {
+    text-align: left;
+    font-family: "Libre Barcode 128 Text", system-ui;
+    font-size: 6rem;
+    font-weight: 400;
+    font-style: normal;
+}
+
+.clock {
+    text-align: right;
+    font-size: 4rem;
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 400;
+    font-style: normal;
 }
