@@ -5,7 +5,7 @@
     align-items: center;
     background-color: black;
     color: white;
-    padding: 4rem;
+    padding: 3rem;
     font-family: "IBM Plex Mono", monospace;
     font-weight: 400;
     font-style: normal;
@@ -15,7 +15,6 @@
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     gap: 1rem;
-    padding: 2rem;
 }
 
 .detail {
@@ -39,6 +38,12 @@
     font-size: 1.5rem;
     text-align: center;
     margin-bottom: 1rem;
+}
+
+.address {
+    font-size: 1.5rem;
+    color: gray;
+    margin-top: 1rem;
 }
 
 .incident-count {
