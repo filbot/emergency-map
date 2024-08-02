@@ -33,9 +33,10 @@ export default function Details({ dataCollection }) {
 
     return (
         <div className="details-container">
-            <h2>Details</h2>
-            <p className="incident-count">Incidents in the last 30 minutes: {dataCollection.length}</p>
-            <p>Last updated: {getElapsedTime()}</p>
+            <div className="details-header">
+                <p className="incident-count">Incidents in the last 30 minutes: {dataCollection.length}</p>
+                <p className="last-updated-count">Last updated: {getElapsedTime()}</p>
+            </div>
             <div className="details">
                 {dataCollection.map((item, index) => (
                     <div key={index} className="detail">

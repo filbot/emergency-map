@@ -1,18 +1,20 @@
 .details-container {
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: space-between;
     align-items: center;
-    height: auto;
-    width: 100%;
     background-color: black;
-    padding: 2rem;
+    color: white;
+    padding: 4rem;
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 400;
+    font-style: normal;
 }
 
 .details {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    gap: 10px;
+    gap: 1rem;
     padding: 2rem;
 }
 
@@ -20,13 +22,31 @@
     border: 1px solid #ccc;
     padding: 10px;
     border-radius: 5px;
+    font-size: 2rem;
 }
 
-.time, .type, .address {
-    margin: 5px 0;
+.details-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    width: 100%;
+}
+
+.time {
+    background-color: white;
+    color: black;
+    font-size: 1.5rem;
+    text-align: center;
+    margin-bottom: 1rem;
 }
 
 .incident-count {
     margin-top: 2rem;
     margin-bottom: 2rem;
+    font-size: 2rem;
+}
+
+.last-updated-count {
+    font-size: 2rem;
 }
