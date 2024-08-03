@@ -45,7 +45,16 @@ export default function Map({ dataCollection }) {
             const newMarkers = [];
 
             dataCollection.forEach((item) => {
-                const marker = new maptilersdk.Marker({ color: "#FF0000" })
+                const customMarkerElement = document.createElement('div');
+                customMarkerElement.innerHTML = `<div class="ripple-container">
+  <svg width="30px" height="30px" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="15" cy="15" r="15" fill="red" />
+  </svg>
+  <div class="ripple"></div>
+  <div class="ripple"></div>
+  <div class="ripple"></div>
+</div>`;
+                const marker = new maptilersdk.Marker({ color: "#FF0000", element: customMarkerElement })
                     .setLngLat([item.longitude, item.latitude])
                     .setPopup(new maptilersdk.Popup({ closeButton: false }).setHTML(`
                         <div class="popup-container">
@@ -56,7 +65,7 @@ export default function Map({ dataCollection }) {
                     `))
                     .addTo(map.current);
 
-                marker.togglePopup();
+                // marker.togglePopup();
                 newMarkers.push(marker);
 
                 // Extend the bounds to include this marker's coordinates
