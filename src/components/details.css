@@ -13,8 +13,11 @@
 
 .details {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(5, 1fr); /* Adjust the number of columns as needed */
     gap: 1rem;
+    align-items: stretch;
+    justify-items: stretch;
+    grid-auto-rows: 1fr; /* Ensure all rows are of equal height */
 }
 
 .detail {
@@ -22,6 +25,11 @@
     padding: 10px;
     border-radius: 5px;
     font-size: 2rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 100%; /* Ensure elements grow to fit their content */
+    min-width: 100%; /* Ensure elements grow to fit their content */
 }
 
 .details-header {
