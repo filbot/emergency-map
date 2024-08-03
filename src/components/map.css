@@ -21,6 +21,10 @@
     border-top-color: black;
   }
 
+  .maplibregl-canvas-container.maplibregl-interactive {
+    cursor: none;
+  }
+
   .maplibregl-popup-content {
     background: black;
     color: white;
