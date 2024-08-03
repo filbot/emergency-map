@@ -73,7 +73,7 @@ export default function Map({ dataCollection }) {
             });
 
             // Fit the map to the bounds of all markers
-            map.current.fitBounds(bounds, { padding: 20 });
+            map.current.fitBounds(bounds, { padding: 100 });
 
             // Update the state with new markers
             setMarkers(newMarkers);
