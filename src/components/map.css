@@ -66,7 +66,7 @@
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: red;
+  background: #d966ff;
   animation: ripple 3s cubic-bezier(0.25, 1, 0.5, 1) infinite;
   opacity: 0;
 }

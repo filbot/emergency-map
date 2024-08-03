@@ -48,7 +48,7 @@ export default function Map({ dataCollection }) {
                 const customMarkerElement = document.createElement('div');
                 customMarkerElement.innerHTML = `<div class="ripple-container">
   <svg width="30px" height="30px" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="15" cy="15" r="15" fill="red" />
+    <circle cx="15" cy="15" r="15" fill="#d966ff" />
   </svg>
   <div class="ripple"></div>
   <div class="ripple"></div>
