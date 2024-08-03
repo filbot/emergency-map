@@ -7,6 +7,7 @@ import "./map.css";
 export default function Map({ dataCollection }) {
     const mapContainer = useRef(null);
     const map = useRef(null);
+    const [markers, setMarkers] = useState([]);
     const seattle = { lng: -122.366951, lat: 47.650298 };
     const [zoom] = useState(13);
     
@@ -36,7 +37,12 @@ export default function Map({ dataCollection }) {
 
     useEffect(() => {
         if (map.current && dataCollection.length > 0) {
+            // Clear existing markers
+            markers.forEach(marker => marker.remove());
+            setMarkers([]);
+
             const bounds = new maptilersdk.LngLatBounds();
+            const newMarkers = [];
 
             dataCollection.forEach((item) => {
                 const marker = new maptilersdk.Marker({ color: "#FF0000" })
@@ -51,6 +57,7 @@ export default function Map({ dataCollection }) {
                     .addTo(map.current);
 
                 marker.togglePopup();
+                newMarkers.push(marker);
 
                 // Extend the bounds to include this marker's coordinates
                 bounds.extend([item.longitude, item.latitude]);
@@ -58,6 +65,9 @@ export default function Map({ dataCollection }) {
 
             // Fit the map to the bounds of all markers
             map.current.fitBounds(bounds, { padding: 20 });
+
+            // Update the state with new markers
+            setMarkers(newMarkers);
         }
     }, [dataCollection]);
 
