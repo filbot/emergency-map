@@ -49,8 +49,8 @@
 
 .ripple-container {
   position: relative;
-  width: 30px;
-  height: 30px;
+  width: 15px;
+  height: 15px;
 }
 
 .ripple-container svg {
@@ -63,8 +63,8 @@
   position: absolute;
   top: 0;
   left: 0;
-  width: 30px;
-  height: 30px;
+  width: 15px;
+  height: 15px;
   border-radius: 50%;
   animation: ripple 3s cubic-bezier(0.25, 1, 0.5, 1) infinite;
   opacity: 0;
