@@ -44,15 +44,18 @@ export default function Map({ dataCollection }) {
             const bounds = new maptilersdk.LngLatBounds();
             const newMarkers = [];
 
-            dataCollection.forEach((item) => {
+            const fireDataCollection = dataCollection.filter(item => item.source === "fire");;
+            const policeDataCollection = dataCollection.filter(item => item.source === "police");;
+
+            fireDataCollection.forEach((item) => {
                 const customMarkerElement = document.createElement('div');
                 customMarkerElement.innerHTML = `<div class="ripple-container">
   <svg width="30px" height="30px" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
     <circle cx="15" cy="15" r="15" fill="#FF3434" />
   </svg>
-  <div class="ripple"></div>
-  <div class="ripple"></div>
-  <div class="ripple"></div>
+  <div class="ripple fire"></div>
+  <div class="ripple fire"></div>
+  <div class="ripple fire"></div>
 </div>`;
                 const marker = new maptilersdk.Marker({ color: "#FF0000", element: customMarkerElement })
                     .setLngLat([item.longitude, item.latitude])
@@ -70,6 +73,39 @@ export default function Map({ dataCollection }) {
 
                 // Extend the bounds to include this marker's coordinates
                 bounds.extend([item.longitude, item.latitude]);
+            });
+
+            policeDataCollection.forEach((item) => {
+                // Check if blurred_longitude and blurred_latitude are between -90 and 90
+                if (item.blurred_latitude < -90 || item.blurred_latitude > 90) {
+                    return; // Skip this item
+                }
+            
+                const customMarkerElement = document.createElement('div');
+                customMarkerElement.innerHTML = `<div class="ripple-container">
+              <svg width="30px" height="30px" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="15" cy="15" r="15" fill="#0074D9" />
+              </svg>
+              <div class="ripple police"></div>
+              <div class="ripple police"></div>
+              <div class="ripple police"></div>
+            </div>`;
+                const marker = new maptilersdk.Marker({ color: "#FF0000", element: customMarkerElement })
+                    .setLngLat([item.blurred_longitude, item.blurred_latitude])
+                    .setPopup(new maptilersdk.Popup({ closeButton: false }).setHTML(`
+                        <div class="popup-container">
+                            <p className="time">${formatTime(item.arrived_time)}</p>
+                            <p className="type">${item.final_call_type}</p>
+                            <p className="address">${item.precinct}</p>
+                        </div>
+                    `))
+                    .addTo(map.current);
+            
+                // marker.togglePopup();
+                newMarkers.push(marker);
+            
+                // Extend the bounds to include this marker's coordinates
+                bounds.extend([item.blurred_longitude, item.blurred_latitude]);
             });
 
             // Fit the map to the bounds of all markers

@@ -1,11 +1,13 @@
 import "./App.css";
-import { useState, useEffect } from 'react';
-import Navbar from "./components/navbar.jsx";
+import React, { useState, useEffect } from 'react';
+import Navbar from './components/navbar.jsx';
 import Map from './components/map.jsx';
-import Details from "./components/details.jsx";
+import Details from './components/details.jsx';
 
 function App() {
-    const [emergencyResponseData, setEmergencyResponseData] = useState([]);
+    const [fireDepartmentCallData, setFireDepartmentCallData] = useState([]);
+    const [policeDepartmentCallData, setPoliceDepartmentCallData] = useState([]);
+    const [combinedData, setCombinedData] = useState([]);
 
     function getTimeObject() {
         const now = new Date();
@@ -29,9 +31,10 @@ function App() {
     }
 
     useEffect(() => {
-        async function fetchData() {
+        const timeObject = getTimeObject();
+
+        async function fetchFireDepartmentCallData() {
             try {
-                const timeObject = getTimeObject();
                 const response = await fetch(
                     `https://data.seattle.gov/resource/kzjm-xkqj.json?$where=Datetime between '${timeObject.fiveMinutesAgo}' and '${timeObject.currentTime}'`,
                     {
@@ -41,24 +44,58 @@ function App() {
                     }
                 );
                 const data = await response.json();
-
-                setEmergencyResponseData(data);
+                setFireDepartmentCallData(data);
             } catch (error) {
                 console.error("Error fetching data:", error);
             }
         }
-        fetchData();
 
-        const intervalId = setInterval(fetchData, 300000); // Fetch every 5 minutes
+        async function fetchPoliceDepartmentCallData() {
+            try {
+                const response = await fetch(
+                    `https://data.seattle.gov/resource/33kz-ixgy.json?$where=arrived_time between '2024-08-04T00:00:00.000' and '${timeObject.currentTime}'`,
+                    {
+                        headers: {
+                            "X-App-Token": import.meta.env.VITE_APP_TOKEN
+                        }
+                    }
+                );
+                const data = await response.json();
+                setPoliceDepartmentCallData(data);
+            } catch (error) {
+                console.error("Error fetching data:", error);
+            }
+        }
+
+        fetchFireDepartmentCallData();
+        fetchPoliceDepartmentCallData();
+
+        const intervalId = setInterval(() => {
+            fetchFireDepartmentCallData();
+            fetchPoliceDepartmentCallData();
+        }, 300000); // Fetch every 5 minutes
 
         return () => clearInterval(intervalId); // Cleanup interval on component unmount
     }, []);
 
+    useEffect(() => {
+        const addIdentifier = (data, identifier) => {
+            return data.map(item => ({ ...item, source: identifier }));
+        };
+
+        const combined = [
+            ...addIdentifier(fireDepartmentCallData, 'fire'),
+            ...addIdentifier(policeDepartmentCallData, 'police')
+        ];
+
+        setCombinedData(combined);
+    }, [fireDepartmentCallData, policeDepartmentCallData]);
+
     return (
         <div className="App">
             <Navbar />
-            <Map dataCollection={emergencyResponseData} />
-            <Details dataCollection={emergencyResponseData} />
+            <Map dataCollection={combinedData} />
+            <Details dataCollection={combinedData} />
         </div>
     );
 }

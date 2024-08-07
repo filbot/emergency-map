@@ -66,9 +66,16 @@
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: #FF3434;
   animation: ripple 3s cubic-bezier(0.25, 1, 0.5, 1) infinite;
   opacity: 0;
+}
+
+.ripple.fire {
+  background: #FF3434;
+}
+
+.ripple.police {
+  background: #0074D9;
 }
 
 .ripple:nth-child(2) {
