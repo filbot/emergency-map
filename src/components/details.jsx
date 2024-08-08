@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import './details.css';
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Details({ dataCollection }) {
     const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
