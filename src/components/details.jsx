@@ -33,7 +33,7 @@ export default function Details({ dataCollection }) {
     return (
         <div className="details-container">
             <div className="details-header">
-                <p className="incident-count">Current number of incidents: {dataCollection.length}</p>
+                <p className="incident-count">Incidents in past 30 minutes: {dataCollection.length}</p>
                 <p className="last-updated-count">Last updated: {getElapsedTime()}</p>
             </div>
             <div className="details">

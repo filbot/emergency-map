@@ -1,6 +1,7 @@
 export function getTimeObject() {
+    const THIRTY_MINUTES = 1800000;
     const now = new Date();
-    const fiveMinutesAgo = new Date(now.getTime() - 30 * 60000);
+    const thirtyMinutesAgo = new Date(now.getTime() - THIRTY_MINUTES);
 
     const formatDateTime = (date) => {
         const year = date.getFullYear();
@@ -15,7 +16,7 @@ export function getTimeObject() {
 
     return {
         currentTime: formatDateTime(now),
-        fiveMinutesAgo: formatDateTime(fiveMinutesAgo)
+        thirtyMinutesAgo: formatDateTime(thirtyMinutesAgo)
     };
 }
 

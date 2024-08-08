@@ -14,7 +14,7 @@ function App() {
         const timeObject = getTimeObject();
 
         async function fetchFireDepartmentCallData() {
-            const query = `$where=Datetime between '${timeObject.fiveMinutesAgo}' and '${timeObject.currentTime}'`;
+            const query = `$where=Datetime between '${timeObject.thirtyMinutesAgo}' and '${timeObject.currentTime}'`;
             await fetchData('https://data.seattle.gov/resource/kzjm-xkqj.json', query, setFireDepartmentCallData);
         }
 
