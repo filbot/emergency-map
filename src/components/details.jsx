@@ -1,40 +1,40 @@
 /* eslint-disable react/prop-types */
-import "./details.css";
-import { useState, useEffect } from 'react';
+import './details.css';
+import React, { useState, useEffect } from 'react';
 
 export default function Details({ dataCollection }) {
-    const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
-    const [currentTime, setCurrentTime] = useState(Date.now());
+    const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
 
     useEffect(() => {
-        setLastUpdateTime(Date.now());
+        if (dataCollection.length > 0) {
+            setCountdown(300); // Reset to 5 minutes when dataCollection is updated
+        }
     }, [dataCollection]);
 
     useEffect(() => {
         const interval = setInterval(() => {
-            setCurrentTime(Date.now());
+            setCountdown(prevCountdown => {
+                if (prevCountdown <= 1) {
+                    return 300; // Reset to 5 minutes
+                }
+                return prevCountdown - 1;
+            });
         }, 1000);
 
         return () => clearInterval(interval);
     }, []);
 
-    const getElapsedTime = () => {
-        const elapsed = currentTime - lastUpdateTime;
-        const seconds = Math.floor(elapsed / 1000);
-        const minutes = Math.floor(seconds / 60);
-        const hours = Math.floor(minutes / 60);
-        const days = Math.floor(hours / 24);
-
-        if (days > 0) return `${days} day(s) ago`;
-        if (hours > 0) return `${hours} hour(s) ago`;
-        if (minutes > 0) return `${minutes} minute(s) ago`;
-        return `${seconds} second(s) ago`;
+    const formatCountdown = () => {
+        const minutes = Math.floor(countdown / 60);
+        const seconds = countdown % 60;
+        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     }
+
     return (
         <div className="details-container">
             <div className="details-header">
-                <p className="incident-count">Incidents in past 30 minutes: {dataCollection.length}</p>
-                <p className="last-updated-count">Last updated: {getElapsedTime()}</p>
+                <p className="incident-count">Incidents in the past 30 minutes: {dataCollection.length}</p>
+                <p className="last-updated-count">Next update: {formatCountdown()}</p>
             </div>
             <div className="details">
                 {dataCollection.filter(item => item.source === "fire").map((item, index) => (
