@@ -1,8 +1,13 @@
 /* eslint-disable react/prop-types */
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import * as maptilersdk from "@maptiler/sdk";
 import "@maptiler/sdk/dist/maptiler-sdk.css";
 import "./map.css";
+import { getMapStyleUrl } from '../config/mapConfig.js';
+
+const apiKey = import.meta.env.VITE_API_KEY;
+const styleUrl = getMapStyleUrl(apiKey);
+maptilersdk.config.apiKey = apiKey;
 
 export default function Map({ dataCollection }) {
     const mapContainer = useRef(null);
@@ -31,8 +36,6 @@ export default function Map({ dataCollection }) {
         && lng >= -180
         && lng <= 180;
     
-    maptilersdk.config.apiKey = import.meta.env.VITE_API_KEY;
-
     function formatTime(dateTimeString) {
         const date = new Date(dateTimeString);
         const hours = date.getHours().toString().padStart(2, '0');
@@ -46,7 +49,7 @@ export default function Map({ dataCollection }) {
         const initializeMap = async () => {
             map.current = new maptilersdk.Map({
                 container: mapContainer.current,
-                style: maptilersdk.MapStyle.DATAVIZ.DARK,
+                style: styleUrl,
                 center: [seattle.lng, seattle.lat],
                 zoom: zoom,
             });
@@ -54,6 +57,11 @@ export default function Map({ dataCollection }) {
 
         initializeMap();
     }, [seattle.lng, seattle.lat, zoom]);
+
+    const { fireDataCollection, policeDataCollection } = useMemo(() => ({
+        fireDataCollection: dataCollection.filter((item) => item.source === 'fire'),
+        policeDataCollection: dataCollection.filter((item) => item.source === 'police')
+    }), [dataCollection]);
 
     useEffect(() => {
         if (map.current && dataCollection.length > 0) {
@@ -63,9 +71,6 @@ export default function Map({ dataCollection }) {
 
             const bounds = new maptilersdk.LngLatBounds();
             const newMarkers = [];
-
-            const fireDataCollection = dataCollection.filter(item => item.source === "fire");;
-            const policeDataCollection = dataCollection.filter(item => item.source === "police");;
 
             fireDataCollection.forEach((item) => {
                 const latitude = parseCoordinate(item.latitude);
@@ -150,7 +155,7 @@ export default function Map({ dataCollection }) {
             // Update the state with new markers
             setMarkers(newMarkers);
         }
-    }, [dataCollection]);
+    }, [dataCollection, fireDataCollection, policeDataCollection]);
 
     return (
         <div className="map-wrap">
