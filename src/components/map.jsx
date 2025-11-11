@@ -10,6 +10,26 @@ export default function Map({ dataCollection }) {
     const [markers, setMarkers] = useState([]);
     const seattle = { lng: -122.366951, lat: 47.650298 };
     const [zoom] = useState(13);
+
+    const parseCoordinate = (value) => {
+        if (value === null || value === undefined) {
+            return value;
+        }
+
+        if (typeof value === 'string') {
+            const parsed = Number(value);
+            return Number.isNaN(parsed) ? undefined : parsed;
+        }
+
+        return value;
+    };
+
+    const isValidCoordinate = (lng, lat) => Number.isFinite(lng)
+        && Number.isFinite(lat)
+        && lat >= -90
+        && lat <= 90
+        && lng >= -180
+        && lng <= 180;
     
     maptilersdk.config.apiKey = import.meta.env.VITE_API_KEY;
 
@@ -48,6 +68,13 @@ export default function Map({ dataCollection }) {
             const policeDataCollection = dataCollection.filter(item => item.source === "police");;
 
             fireDataCollection.forEach((item) => {
+                const latitude = parseCoordinate(item.latitude);
+                const longitude = parseCoordinate(item.longitude);
+
+                if (!isValidCoordinate(longitude, latitude)) {
+                    return;
+                }
+
                 const customMarkerElement = document.createElement('div');
                 customMarkerElement.innerHTML = `<div class="ripple-container">
   <svg width="20px" height="20px" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
@@ -58,7 +85,7 @@ export default function Map({ dataCollection }) {
   <div class="ripple fire"></div>
 </div>`;
                 const marker = new maptilersdk.Marker({ color: "#FF0000", element: customMarkerElement })
-                    .setLngLat([item.longitude, item.latitude])
+                    .setLngLat([longitude, latitude])
                     .setPopup(new maptilersdk.Popup({ closeButton: false }).setHTML(`
                         <div class="popup-container">
                             <p className="time">${formatTime(item.datetime)}</p>
@@ -72,15 +99,17 @@ export default function Map({ dataCollection }) {
                 newMarkers.push(marker);
 
                 // Extend the bounds to include this marker's coordinates
-                bounds.extend([item.longitude, item.latitude]);
+                bounds.extend([longitude, latitude]);
             });
 
             policeDataCollection.forEach((item) => {
-                // Check if blurred_longitude and blurred_latitude are between -90 and 90
-                if (item.blurred_latitude < -90 || item.blurred_latitude > 90) {
-                    return; // Skip this item
+                const latitude = parseCoordinate(item.blurred_latitude);
+                const longitude = parseCoordinate(item.blurred_longitude);
+
+                if (!isValidCoordinate(longitude, latitude)) {
+                    return;
                 }
-            
+
                 const customMarkerElement = document.createElement('div');
                 customMarkerElement.innerHTML = `<div class="ripple-container">
               <svg width="30px" height="30px" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
@@ -91,7 +120,7 @@ export default function Map({ dataCollection }) {
               <div class="ripple police"></div>
             </div>`;
                 const marker = new maptilersdk.Marker({ color: "#FF0000", element: customMarkerElement })
-                    .setLngLat([item.blurred_longitude, item.blurred_latitude])
+                    .setLngLat([longitude, latitude])
                     .setPopup(new maptilersdk.Popup({ closeButton: false }).setHTML(`
                         <div class="popup-container">
                             <p className="time">${formatTime(item.arrived_time)}</p>
@@ -105,11 +134,18 @@ export default function Map({ dataCollection }) {
                 newMarkers.push(marker);
             
                 // Extend the bounds to include this marker's coordinates
-                bounds.extend([item.blurred_longitude, item.blurred_latitude]);
+                bounds.extend([longitude, latitude]);
             });
 
             // Fit the map to the bounds of all markers
-            map.current.fitBounds(bounds, { padding: 100 });
+            const canvas = map.current.getCanvas();
+            const hasSize = canvas && canvas.width > 0 && canvas.height > 0;
+
+            const hasBounds = typeof bounds.isEmpty === 'function' ? !bounds.isEmpty() : newMarkers.length > 0;
+
+            if (hasBounds && hasSize) {
+                map.current.fitBounds(bounds, { padding: 100 });
+            }
 
             // Update the state with new markers
             setMarkers(newMarkers);

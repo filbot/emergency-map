@@ -20,16 +20,27 @@ export function getTimeObject() {
     };
 }
 
-export async function fetchData(endpoint, query, setData) {
-    try {
-        const response = await fetch(`${endpoint}?${query}`, {
-            headers: {
-                "X-App-Token": import.meta.env.VITE_APP_TOKEN
-            }
-        });
-        const data = await response.json();
-        setData(data);
-    } catch (error) {
-        console.error("Error fetching data:", error);
+export async function fetchData(endpoint, queryParams, options = {}) {
+    const url = new URL(endpoint);
+    const params = queryParams instanceof URLSearchParams
+        ? new URLSearchParams(queryParams)
+        : new URLSearchParams(queryParams ?? {});
+
+    params.forEach((value, key) => {
+        url.searchParams.set(key, value);
+    });
+
+    const response = await fetch(url.toString(), {
+        headers: {
+            "X-App-Token": import.meta.env.VITE_APP_TOKEN
+        },
+        signal: options.signal
+    });
+
+    if (!response.ok) {
+        const message = await response.text();
+        throw new Error(`Request failed with status ${response.status}: ${message}`);
     }
+
+    return response.json();
 }
