@@ -9,10 +9,33 @@ const apiKey = import.meta.env.VITE_API_KEY;
 const styleUrl = getMapStyleUrl(apiKey);
 maptilersdk.config.apiKey = apiKey;
 
+const FIRE_MARKER_COLOR = "#FF0000";
+const POLICE_MARKER_COLOR = "#0057B8";
+
+const buildIncidentKey = (item, prefix) => item.cad_event_number
+    || item.incident_number
+    || item.event_number
+    || `${prefix}-${item.datetime ?? item.arrived_time ?? ''}-${item.address ?? item.precinct ?? ''}`;
+
+const createMarkerElement = (type) => {
+    const element = document.createElement('div');
+    const size = type === 'fire' ? 20 : 30;
+    const fill = type === 'fire' ? '#FF3434' : '#0074D9';
+    element.innerHTML = `<div class="ripple-container">
+  <svg width="${size}px" height="${size}px" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="15" cy="15" r="15" fill="${fill}" />
+  </svg>
+  <div class="ripple ${type}"></div>
+  <div class="ripple ${type}"></div>
+  <div class="ripple ${type}"></div>
+</div>`;
+    return element;
+};
+
 export default function Map({ dataCollection }) {
     const mapContainer = useRef(null);
     const map = useRef(null);
-    const [markers, setMarkers] = useState([]);
+    const markersRef = useRef(new Map());
     const seattle = { lng: -122.366951, lat: 47.650298 };
     const [zoom] = useState(13);
 
@@ -64,15 +87,37 @@ export default function Map({ dataCollection }) {
     }), [dataCollection]);
 
     useEffect(() => {
-        if (map.current && dataCollection.length > 0) {
-            // Clear existing markers
-            markers.forEach(marker => marker.remove());
-            setMarkers([]);
+        if (!map.current) {
+            return;
+        }
 
-            const bounds = new maptilersdk.LngLatBounds();
-            const newMarkers = [];
+        if (dataCollection.length === 0) {
+            markersRef.current.forEach(({ marker }) => marker.remove());
+            markersRef.current.clear();
+            return;
+        }
 
-            fireDataCollection.forEach((item) => {
+        const ensureMarker = ({ id, longitude, latitude, popupHtml, color, elementClass }) => {
+            const existing = markersRef.current.get(id);
+            if (existing) {
+                existing.marker.setLngLat([longitude, latitude]);
+                existing.popup.setHTML(popupHtml);
+                return;
+            }
+
+            const popup = new maptilersdk.Popup({ closeButton: false }).setHTML(popupHtml);
+            const marker = new maptilersdk.Marker({ color, element: createMarkerElement(elementClass) })
+                .setLngLat([longitude, latitude])
+                .setPopup(popup)
+                .addTo(map.current);
+
+            markersRef.current.set(id, { marker, popup });
+        };
+
+        const bounds = new maptilersdk.LngLatBounds();
+        const activeMarkerIds = new Set();
+
+        fireDataCollection.forEach((item) => {
                 const latitude = parseCoordinate(item.latitude);
                 const longitude = parseCoordinate(item.longitude);
 
@@ -80,30 +125,24 @@ export default function Map({ dataCollection }) {
                     return;
                 }
 
-                const customMarkerElement = document.createElement('div');
-                customMarkerElement.innerHTML = `<div class="ripple-container">
-  <svg width="20px" height="20px" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
-    <circle cx="15" cy="15" r="15" fill="#FF3434" />
-  </svg>
-  <div class="ripple fire"></div>
-  <div class="ripple fire"></div>
-  <div class="ripple fire"></div>
-</div>`;
-                const marker = new maptilersdk.Marker({ color: "#FF0000", element: customMarkerElement })
-                    .setLngLat([longitude, latitude])
-                    .setPopup(new maptilersdk.Popup({ closeButton: false }).setHTML(`
+                const markerId = buildIncidentKey(item, 'fire');
+                const popupHtml = `
                         <div class="popup-container">
                             <p className="time">${formatTime(item.datetime)}</p>
                             <p className="type">${item.type}</p>
                             <p className="address">${item.address}</p>
-                        </div>
-                    `))
-                    .addTo(map.current);
+                        </div>`;
 
-                // marker.togglePopup();
-                newMarkers.push(marker);
+                ensureMarker({
+                    id: markerId,
+                    longitude,
+                    latitude,
+                    popupHtml,
+                    color: FIRE_MARKER_COLOR,
+                    elementClass: 'fire'
+                });
 
-                // Extend the bounds to include this marker's coordinates
+                activeMarkerIds.add(markerId);
                 bounds.extend([longitude, latitude]);
             });
 
@@ -115,30 +154,24 @@ export default function Map({ dataCollection }) {
                     return;
                 }
 
-                const customMarkerElement = document.createElement('div');
-                customMarkerElement.innerHTML = `<div class="ripple-container">
-              <svg width="30px" height="30px" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="15" cy="15" r="15" fill="#0074D9" />
-              </svg>
-              <div class="ripple police"></div>
-              <div class="ripple police"></div>
-              <div class="ripple police"></div>
-            </div>`;
-                const marker = new maptilersdk.Marker({ color: "#FF0000", element: customMarkerElement })
-                    .setLngLat([longitude, latitude])
-                    .setPopup(new maptilersdk.Popup({ closeButton: false }).setHTML(`
+                const markerId = buildIncidentKey(item, 'police');
+                const popupHtml = `
                         <div class="popup-container">
                             <p className="time">${formatTime(item.arrived_time)}</p>
                             <p className="type">${item.final_call_type}</p>
                             <p className="address">${item.precinct}</p>
-                        </div>
-                    `))
-                    .addTo(map.current);
-            
-                // marker.togglePopup();
-                newMarkers.push(marker);
-            
-                // Extend the bounds to include this marker's coordinates
+                        </div>`;
+
+                ensureMarker({
+                    id: markerId,
+                    longitude,
+                    latitude,
+                    popupHtml,
+                    color: POLICE_MARKER_COLOR,
+                    elementClass: 'police'
+                });
+
+                activeMarkerIds.add(markerId);
                 bounds.extend([longitude, latitude]);
             });
 
@@ -146,14 +179,18 @@ export default function Map({ dataCollection }) {
             const canvas = map.current.getCanvas();
             const hasSize = canvas && canvas.width > 0 && canvas.height > 0;
 
-            const hasBounds = typeof bounds.isEmpty === 'function' ? !bounds.isEmpty() : newMarkers.length > 0;
+            const hasBounds = typeof bounds.isEmpty === 'function' ? !bounds.isEmpty() : activeMarkerIds.size > 0;
 
             if (hasBounds && hasSize) {
                 map.current.fitBounds(bounds, { padding: 100 });
             }
 
-            // Update the state with new markers
-            setMarkers(newMarkers);
+            markersRef.current.forEach((entry, id) => {
+                if (!activeMarkerIds.has(id)) {
+                    entry.marker.remove();
+                    markersRef.current.delete(id);
+                }
+            });
         }
     }, [dataCollection, fireDataCollection, policeDataCollection]);
 

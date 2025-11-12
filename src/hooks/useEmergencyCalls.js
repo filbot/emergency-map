@@ -26,7 +26,7 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
     const datasetConfigs = useMemo(() => ([
         { source: 'fire', ...DATASETS.fire, setter: setFireDepartmentCallData },
         { source: 'police', ...DATASETS.police, setter: setPoliceDepartmentCallData }
-    ]), [setFireDepartmentCallData, setPoliceDepartmentCallData]);
+    ]), []);
 
     const timeWindow = useMemo(() => getTimeObject(), [refreshTick]);
 
@@ -70,9 +70,7 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
         const controller = new AbortController();
 
         const loadCollections = async () => {
-            for (const config of datasetConfigs) {
-                await fetchWithRetry(config, controller.signal);
-            }
+            await Promise.all(datasetConfigs.map((config) => fetchWithRetry(config, controller.signal)));
         };
 
         loadCollections();
@@ -80,7 +78,7 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
         return () => {
             controller.abort();
         };
-    }, [datasetConfigs, fetchWithRetry]);
+    }, [datasetConfigs, fetchWithRetry, refreshTick]);
 
     useEffect(() => {
         if (!pollInterval) {
