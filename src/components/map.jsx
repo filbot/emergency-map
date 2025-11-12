@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import { useRef, useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import * as maptilersdk from "@maptiler/sdk";
 import "@maptiler/sdk/dist/maptiler-sdk.css";
 import "./map.css";
@@ -11,13 +11,52 @@ maptilersdk.config.apiKey = apiKey;
 
 const FIRE_MARKER_COLOR = "#FF0000";
 const POLICE_MARKER_COLOR = "#0057B8";
+const DEFAULT_CENTER = Object.freeze({ lng: -122.366951, lat: 47.650298 });
+const DEFAULT_ZOOM = 13;
 
 const buildIncidentKey = (item, prefix) => item.cad_event_number
     || item.incident_number
     || item.event_number
     || `${prefix}-${item.datetime ?? item.arrived_time ?? ''}-${item.address ?? item.precinct ?? ''}`;
 
+const parseCoordinate = (value) => {
+    if (value === null || value === undefined) {
+        return undefined;
+    }
+
+    if (typeof value === 'string') {
+        const parsed = Number(value);
+        return Number.isNaN(parsed) ? undefined : parsed;
+    }
+
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+};
+
+const isValidCoordinate = (lng, lat) => Number.isFinite(lng)
+    && Number.isFinite(lat)
+    && lat >= -90
+    && lat <= 90
+    && lng >= -180
+    && lng <= 180;
+
+const formatTime = (dateTimeString) => {
+    if (!dateTimeString) {
+        return '--:--';
+    }
+    const date = new Date(dateTimeString);
+    if (Number.isNaN(date.getTime())) {
+        return '--:--';
+    }
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+};
+
 const createMarkerElement = (type) => {
+    if (typeof document === 'undefined') {
+        return null;
+    }
+
     const element = document.createElement('div');
     const size = type === 'fire' ? 20 : 30;
     const fill = type === 'fire' ? '#FF3434' : '#0074D9';
@@ -32,170 +71,155 @@ const createMarkerElement = (type) => {
     return element;
 };
 
-export default function Map({ dataCollection }) {
-    const mapContainer = useRef(null);
-    const map = useRef(null);
-    const markersRef = useRef(new Map());
-    const seattle = { lng: -122.366951, lat: 47.650298 };
-    const [zoom] = useState(13);
-
-    const parseCoordinate = (value) => {
-        if (value === null || value === undefined) {
-            return value;
-        }
-
-        if (typeof value === 'string') {
-            const parsed = Number(value);
-            return Number.isNaN(parsed) ? undefined : parsed;
-        }
-
-        return value;
-    };
-
-    const isValidCoordinate = (lng, lat) => Number.isFinite(lng)
-        && Number.isFinite(lat)
-        && lat >= -90
-        && lat <= 90
-        && lng >= -180
-        && lng <= 180;
-    
-    function formatTime(dateTimeString) {
-        const date = new Date(dateTimeString);
-        const hours = date.getHours().toString().padStart(2, '0');
-        const minutes = date.getMinutes().toString().padStart(2, '0');
-        return `${hours}:${minutes}`;
+const getCoordinates = (incident, type) => {
+    if (type === 'fire') {
+        return {
+            lng: parseCoordinate(incident.longitude),
+            lat: parseCoordinate(incident.latitude)
+        };
     }
 
-    useEffect(() => {
-        if (map.current) return; // stops map from initializing more than once
+    return {
+        lng: parseCoordinate(incident.blurred_longitude ?? incident.longitude),
+        lat: parseCoordinate(incident.blurred_latitude ?? incident.latitude)
+    };
+};
 
-        const initializeMap = async () => {
-            map.current = new maptilersdk.Map({
-                container: mapContainer.current,
-                style: styleUrl,
-                center: [seattle.lng, seattle.lat],
-                zoom: zoom,
-            });
+const buildPopupHtml = (incident, type) => {
+    if (type === 'fire') {
+        return `
+            <div class="popup-container">
+                <p class="time">${formatTime(incident.datetime)}</p>
+                <p class="type">${incident.type ?? ''}</p>
+                <p class="address">${incident.address ?? ''}</p>
+            </div>`;
+    }
+
+    return `
+            <div class="popup-container">
+                <p class="time">${formatTime(incident.arrived_time)}</p>
+                <p class="type">${incident.final_call_type ?? ''}</p>
+                <p class="address">${incident.precinct ?? incident.district_sector ?? ''}</p>
+            </div>`;
+};
+
+export default function EmergencyMap({ dataCollection = [] } = {}) {
+    const mapContainerRef = useRef(null);
+    const mapRef = useRef(null);
+    const markersRef = useRef(new Map());
+
+    const groupedIncidents = useMemo(() => dataCollection.reduce((acc, item) => {
+        if (item.source === 'fire') {
+            acc.fire.push(item);
+        } else if (item.source === 'police') {
+            acc.police.push(item);
+        }
+        return acc;
+    }, { fire: [], police: [] }), [dataCollection]);
+
+    const { fire: fireIncidents, police: policeIncidents } = groupedIncidents;
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !mapContainerRef.current || mapRef.current) {
+            return undefined;
+        }
+
+        const mapInstance = new maptilersdk.Map({
+            container: mapContainerRef.current,
+            style: styleUrl,
+            center: [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat],
+            zoom: DEFAULT_ZOOM,
+        });
+
+        mapRef.current = mapInstance;
+
+        return () => {
+            markersRef.current.forEach(({ marker }) => marker.remove());
+            markersRef.current.clear();
+            mapInstance.remove();
+            mapRef.current = null;
         };
-
-        initializeMap();
-    }, [seattle.lng, seattle.lat, zoom]);
-
-    const { fireDataCollection, policeDataCollection } = useMemo(() => ({
-        fireDataCollection: dataCollection.filter((item) => item.source === 'fire'),
-        policeDataCollection: dataCollection.filter((item) => item.source === 'police')
-    }), [dataCollection]);
+    }, [styleUrl]);
 
     useEffect(() => {
-        if (!map.current) {
+        const mapInstance = mapRef.current;
+        if (!mapInstance) {
             return;
         }
 
-        if (dataCollection.length === 0) {
+        const hasIncidents = fireIncidents.length > 0 || policeIncidents.length > 0;
+        if (!hasIncidents) {
             markersRef.current.forEach(({ marker }) => marker.remove());
             markersRef.current.clear();
             return;
         }
 
-        const ensureMarker = ({ id, longitude, latitude, popupHtml, color, elementClass }) => {
-            const existing = markersRef.current.get(id);
-            if (existing) {
-                existing.marker.setLngLat([longitude, latitude]);
-                existing.popup.setHTML(popupHtml);
-                return;
-            }
-
-            const popup = new maptilersdk.Popup({ closeButton: false }).setHTML(popupHtml);
-            const marker = new maptilersdk.Marker({ color, element: createMarkerElement(elementClass) })
-                .setLngLat([longitude, latitude])
-                .setPopup(popup)
-                .addTo(map.current);
-
-            markersRef.current.set(id, { marker, popup });
-        };
-
         const bounds = new maptilersdk.LngLatBounds();
         const activeMarkerIds = new Set();
 
-        fireDataCollection.forEach((item) => {
-                const latitude = parseCoordinate(item.latitude);
-                const longitude = parseCoordinate(item.longitude);
-
-                if (!isValidCoordinate(longitude, latitude)) {
-                    return;
-                }
-
-                const markerId = buildIncidentKey(item, 'fire');
-                const popupHtml = `
-                        <div class="popup-container">
-                            <p className="time">${formatTime(item.datetime)}</p>
-                            <p className="type">${item.type}</p>
-                            <p className="address">${item.address}</p>
-                        </div>`;
-
-                ensureMarker({
-                    id: markerId,
-                    longitude,
-                    latitude,
-                    popupHtml,
-                    color: FIRE_MARKER_COLOR,
-                    elementClass: 'fire'
-                });
-
-                activeMarkerIds.add(markerId);
-                bounds.extend([longitude, latitude]);
-            });
-
-            policeDataCollection.forEach((item) => {
-                const latitude = parseCoordinate(item.blurred_latitude);
-                const longitude = parseCoordinate(item.blurred_longitude);
-
-                if (!isValidCoordinate(longitude, latitude)) {
-                    return;
-                }
-
-                const markerId = buildIncidentKey(item, 'police');
-                const popupHtml = `
-                        <div class="popup-container">
-                            <p className="time">${formatTime(item.arrived_time)}</p>
-                            <p className="type">${item.final_call_type}</p>
-                            <p className="address">${item.precinct}</p>
-                        </div>`;
-
-                ensureMarker({
-                    id: markerId,
-                    longitude,
-                    latitude,
-                    popupHtml,
-                    color: POLICE_MARKER_COLOR,
-                    elementClass: 'police'
-                });
-
-                activeMarkerIds.add(markerId);
-                bounds.extend([longitude, latitude]);
-            });
-
-            // Fit the map to the bounds of all markers
-            const canvas = map.current.getCanvas();
-            const hasSize = canvas && canvas.width > 0 && canvas.height > 0;
-
-            const hasBounds = typeof bounds.isEmpty === 'function' ? !bounds.isEmpty() : activeMarkerIds.size > 0;
-
-            if (hasBounds && hasSize) {
-                map.current.fitBounds(bounds, { padding: 100 });
+        const upsertMarker = (incident, type) => {
+            const { lng, lat } = getCoordinates(incident, type);
+            if (!isValidCoordinate(lng, lat)) {
+                return;
             }
 
-            markersRef.current.forEach((entry, id) => {
-                if (!activeMarkerIds.has(id)) {
-                    entry.marker.remove();
-                    markersRef.current.delete(id);
-                }
-            });
-    }, [dataCollection, fireDataCollection, policeDataCollection]);
+            const markerId = buildIncidentKey(incident, type);
+            const popupHtml = buildPopupHtml(incident, type);
+            if (!popupHtml) {
+                return;
+            }
+
+            const existing = markersRef.current.get(markerId);
+            if (existing) {
+                existing.marker.setLngLat([lng, lat]);
+                existing.popup.setHTML(popupHtml);
+            } else {
+                const element = createMarkerElement(type);
+                const color = type === 'fire' ? FIRE_MARKER_COLOR : POLICE_MARKER_COLOR;
+                const markerOptions = element ? { element } : { color };
+                const popup = new maptilersdk.Popup({ closeButton: false }).setHTML(popupHtml);
+                const marker = new maptilersdk.Marker(markerOptions)
+                    .setLngLat([lng, lat])
+                    .setPopup(popup)
+                    .addTo(mapInstance);
+
+                markersRef.current.set(markerId, { marker, popup });
+            }
+
+            activeMarkerIds.add(markerId);
+            bounds.extend([lng, lat]);
+        };
+
+        fireIncidents.forEach((incident) => upsertMarker(incident, 'fire'));
+        policeIncidents.forEach((incident) => upsertMarker(incident, 'police'));
+
+        const canvas = mapInstance.getCanvas();
+        const hasSize = canvas && canvas.width > 0 && canvas.height > 0;
+        const hasBounds = typeof bounds.isEmpty === 'function' ? !bounds.isEmpty() : activeMarkerIds.size > 0;
+
+        if (hasBounds && hasSize) {
+            mapInstance.fitBounds(bounds, { padding: 100, maxZoom: Math.max(mapInstance.getZoom(), DEFAULT_ZOOM) });
+        }
+
+        const staleIds = [];
+        markersRef.current.forEach((_, id) => {
+            if (!activeMarkerIds.has(id)) {
+                staleIds.push(id);
+            }
+        });
+
+        staleIds.forEach((id) => {
+            const entry = markersRef.current.get(id);
+            if (entry) {
+                entry.marker.remove();
+            }
+            markersRef.current.delete(id);
+        });
+    }, [fireIncidents, policeIncidents]);
 
     return (
         <div className="map-wrap">
-            <div ref={mapContainer} className="map" />
+            <div ref={mapContainerRef} className="map" />
         </div>
     );
 }

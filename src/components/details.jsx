@@ -2,6 +2,20 @@
 import './details.css';
 import { useState, useEffect, useMemo } from 'react';
 
+const buildIncidentKey = (item, prefix, index) => item.cad_event_number
+    || item.incident_number
+    || item.event_number
+    || `${prefix}-${item.datetime ?? item.arrived_time ?? ''}-${item.address ?? item.precinct ?? ''}-${index}`;
+
+const groupIncidents = (collection) => collection.reduce((acc, incident) => {
+    if (incident.source === 'fire') {
+        acc.fire.push(incident);
+    } else if (incident.source === 'police' && acc.police.length < 10) {
+        acc.police.push(incident);
+    }
+    return acc;
+}, { fire: [], police: [] });
+
 export default function Details({ dataCollection }) {
     const FIVE_MINUTES_MS = 300000;
     const [countdownMs, setCountdownMs] = useState(FIVE_MINUTES_MS);
@@ -32,13 +46,7 @@ export default function Details({ dataCollection }) {
         return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(2, '0')}`;
     }, [countdownMs]);
 
-    const fireIncidents = useMemo(() => dataCollection.filter((item) => item.source === 'fire'), [dataCollection]);
-    const policeIncidents = useMemo(() => dataCollection.filter((item) => item.source === 'police').slice(0, 10), [dataCollection]);
-
-    const buildIncidentKey = (item, prefix, index) => item.cad_event_number
-        || item.incident_number
-        || item.event_number
-        || `${prefix}-${item.datetime ?? item.arrived_time ?? ''}-${item.address ?? item.precinct ?? ''}-${index}`;
+    const { fire: fireIncidents, police: policeIncidents } = useMemo(() => groupIncidents(dataCollection), [dataCollection]);
 
     return (
         <div className="details-container">
