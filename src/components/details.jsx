@@ -1,40 +1,42 @@
 /* eslint-disable react/prop-types */
 import './details.css';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 export default function Details({ dataCollection }) {
-    const [countdown, setCountdown] = useState(300); // 5 minutes in seconds
+    const FIVE_MINUTES_MS = 300000;
+    const [countdownMs, setCountdownMs] = useState(FIVE_MINUTES_MS);
 
     useEffect(() => {
         if (dataCollection.length > 0) {
-            setCountdown(300); // Reset to 5 minutes when dataCollection is updated
+            setCountdownMs(FIVE_MINUTES_MS); // Reset to 5 minutes when dataCollection is updated
         }
     }, [dataCollection]);
 
     useEffect(() => {
         const interval = setInterval(() => {
-            setCountdown(prevCountdown => {
-                if (prevCountdown <= 1) {
-                    return 300; // Reset to 5 minutes
+            setCountdownMs(prevCountdown => {
+                if (prevCountdown <= 0) {
+                    return FIVE_MINUTES_MS;
                 }
-                return prevCountdown - 1;
+                return Math.max(prevCountdown - 50, 0);
             });
-        }, 1000);
+        }, 50);
 
         return () => clearInterval(interval);
     }, []);
 
-    const formatCountdown = () => {
-        const minutes = Math.floor(countdown / 60);
-        const seconds = countdown % 60;
-        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    }
+    const formatCountdown = useMemo(() => {
+        const minutes = Math.floor(countdownMs / 60000);
+        const seconds = Math.floor((countdownMs % 60000) / 1000);
+        const milliseconds = countdownMs % 1000;
+        return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(milliseconds).padStart(3, '0')}`;
+    }, [countdownMs]);
 
     return (
         <div className="details-container">
             <div className="details-header">
                 <p className="incident-count">Incidents in the past 30 minutes: {dataCollection.length}</p>
-                <p className="last-updated-count">Next update: {formatCountdown()}</p>
+                <p className="last-updated-count">Next update: {formatCountdown}</p>
             </div>
             <div className="details">
                 {dataCollection.filter(item => item.source === "fire").map((item, index) => (
