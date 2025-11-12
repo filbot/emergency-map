@@ -191,7 +191,6 @@ export default function Map({ dataCollection }) {
                     markersRef.current.delete(id);
                 }
             });
-        }
     }, [dataCollection, fireDataCollection, policeDataCollection]);
 
     return (
