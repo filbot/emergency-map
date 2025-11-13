@@ -260,12 +260,31 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
         fireIncidents.forEach((incident) => upsertMarker(incident, 'fire'));
         policeIncidents.forEach((incident) => upsertMarker(incident, 'police'));
 
-        const canvas = mapInstance.getCanvas();
-        const hasSize = canvas && canvas.width > 0 && canvas.height > 0;
         const hasBounds = typeof bounds.isEmpty === 'function' ? !bounds.isEmpty() : activeMarkerIds.size > 0;
 
-        if (hasBounds && hasSize) {
-            mapInstance.fitBounds(bounds, { padding: 100, maxZoom: Math.max(mapInstance.getZoom(), DEFAULT_ZOOM) });
+        let pendingLoadHandler = null;
+
+        const fitToMarkers = () => {
+            const canvas = mapInstance.getCanvas();
+            if (!canvas || canvas.width === 0 || canvas.height === 0) {
+                return;
+            }
+            mapInstance.fitBounds(bounds, { padding: 100 });
+        };
+
+        if (hasBounds) {
+            const isLoaded = typeof mapInstance.loaded === 'function'
+                ? mapInstance.loaded()
+                : mapInstance.isStyleLoaded?.();
+
+            if (isLoaded) {
+                fitToMarkers();
+            } else {
+                pendingLoadHandler = () => {
+                    fitToMarkers();
+                };
+                mapInstance.once('load', pendingLoadHandler);
+            }
         }
 
         const staleIds = [];
@@ -282,6 +301,12 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
             }
             markersRef.current.delete(id);
         });
+
+        return () => {
+            if (pendingLoadHandler) {
+                mapInstance.off('load', pendingLoadHandler);
+            }
+        };
     }, [fireIncidents, policeIncidents]);
 
     return (
