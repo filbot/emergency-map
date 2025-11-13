@@ -52,6 +52,21 @@ const formatTime = (dateTimeString) => {
     return `${hours}:${minutes}`;
 };
 
+const isAbortError = (error) => {
+    if (!error) {
+        return false;
+    }
+    if (error.name === 'AbortError') {
+        return true;
+    }
+
+    if (typeof error.message === 'string' && error.message.toLowerCase().includes('aborted')) {
+        return true;
+    }
+
+    return false;
+};
+
 const createMarkerElement = (type) => {
     if (typeof document === 'undefined') {
         return null;
@@ -131,13 +146,65 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
             zoom: DEFAULT_ZOOM,
         });
 
+        const handleError = (event) => {
+            const error = event?.error;
+            if (!error || isAbortError(error)) {
+                return;
+            }
+            console.error('Map rendering error', error);
+        };
+
+        mapInstance.on('error', handleError);
         mapRef.current = mapInstance;
 
         return () => {
+            mapInstance.off('error', handleError);
             markersRef.current.forEach(({ marker }) => marker.remove());
             markersRef.current.clear();
-            mapInstance.remove();
-            mapRef.current = null;
+            if (mapRef.current === mapInstance) {
+                mapRef.current = null;
+            }
+
+            const finalizeRemoval = () => {
+                try {
+                    mapInstance.remove();
+                } catch (error) {
+                    if (!isAbortError(error)) {
+                        console.error('Failed to remove map instance', error);
+                    }
+                }
+            };
+
+            const loaded = typeof mapInstance.loaded === 'function'
+                ? mapInstance.loaded()
+                : mapInstance.isStyleLoaded?.();
+
+            if (loaded) {
+                finalizeRemoval();
+                return;
+            }
+
+            let resolved = false;
+            const cleanupDeferred = () => {
+                if (resolved) {
+                    return;
+                }
+                resolved = true;
+                finalizeRemoval();
+            };
+
+            const timeoutId = window.setTimeout(cleanupDeferred, 3000);
+            mapInstance.once('load', () => {
+                window.clearTimeout(timeoutId);
+                cleanupDeferred();
+            });
+            mapInstance.once('error', (event) => {
+                if (isAbortError(event?.error)) {
+                    return;
+                }
+                window.clearTimeout(timeoutId);
+                cleanupDeferred();
+            });
         };
     }, [styleUrl]);
 

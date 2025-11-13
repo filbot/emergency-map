@@ -128,8 +128,11 @@ function buildSpriteRequests(spriteBaseUrl, apiKey) {
         return [];
     }
 
-    const base = ensureKey(spriteBaseUrl, apiKey);
-    return [`${base}.json`, `${base}.png`];
+    const trimmedBase = spriteBaseUrl.replace(/(\.json|\.png)$/i, '');
+    return [
+        ensureKey(`${trimmedBase}.json`, apiKey),
+        ensureKey(`${trimmedBase}.png`, apiKey)
+    ];
 }
 
 function expandTileTemplates(templates, bounds, zoomLevels) {

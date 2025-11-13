@@ -1,6 +1,6 @@
 # Emergency Map Dashboard
 
-Emergency Map is a React + Vite kiosk application that monitors Seattle Fire and Police dispatch feeds, combines the most recent 30 minutes of incidents, and plots them on a MapTiler map with animated markers. A sidebar lists the same incidents, highlights counts, and shows when the next automatic refresh will occur. The app is designed to run unattended on a Raspberry Pi in kiosk mode, so everything loads full screen and keeps polling in the background without user input.
+Emergency Map is a React + Vite kiosk application that monitors Seattle Fire and Police dispatch feeds, combines the most recent 30 minutes of incidents, and plots them on a MapTiler map with animated markers. A bottom/side bar lists the same incidents, highlights counts, and shows when the next automatic refresh will occur. The web app can be run anyware that can run web apps but is intended to run unattended on a Raspberry Pi in kiosk mode, so everything loads full screen and keeps polling in the background without user input.
 
 ## Quick Start
 1. **Install dependencies**
@@ -23,6 +23,9 @@ Emergency Map is a React + Vite kiosk application that monitors Seattle Fire and
    ```
 
 Deploy the contents of `dist/` to the Raspberry Pi’s static server or include them in your kiosk image. The app will automatically fetch new incidents every five minutes once it is running.
+
+## Raspberry Pi Watchdog heartbeat
+If your kiosk image exposes an HTTP watchdog, set `VITE_HEARTBEAT_URL` (for example `http://localhost/heartbeat.php`) before building and the app will ping it every two seconds. Leaving the variable empty disables the heartbeat (the default in local development).
 
 ## Docker Deployment (Internal Hosting)
 1. **Build the image** (pass your production tokens so Vite can embed them):

@@ -1,16 +1,47 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchData, getTimeObject } from '../libs/utilites.js';
+import {
+    readCachedCollection,
+    readLastFetchTimestamp,
+    writeCachedCollection,
+    writeLastFetchTimestamp
+} from '../libs/cache.js';
 
 const FIVE_MINUTES = 300000;
 
 const DATASETS = {
     fire: {
         endpoint: 'https://data.seattle.gov/resource/kzjm-xkqj.json',
-        dateField: 'Datetime'
+        dateField: 'Datetime',
+        orderField: 'Datetime',
+        limit: 500,
+        selectFields: [
+            'incident_number',
+            'datetime',
+            'type',
+            'address',
+            'longitude',
+            'latitude'
+        ]
     },
     police: {
         endpoint: 'https://data.seattle.gov/resource/33kz-ixgy.json',
-        dateField: 'cad_event_arrived_time'
+        dateField: 'cad_event_arrived_time',
+        orderField: 'cad_event_arrived_time',
+        limit: 800,
+        selectFields: [
+            'cad_event_number',
+            'event_number',
+            'arrived_time',
+            'cad_event_arrived_time',
+            'final_call_type',
+            'precinct',
+            'district_sector',
+            'longitude',
+            'latitude',
+            'blurred_latitude',
+            'blurred_longitude'
+        ]
     }
 };
 
@@ -19,24 +50,39 @@ async function wait(delay) {
 }
 
 export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
-    const [fireDepartmentCallData, setFireDepartmentCallData] = useState([]);
-    const [policeDepartmentCallData, setPoliceDepartmentCallData] = useState([]);
-    const [refreshTick, setRefreshTick] = useState(0);
+    const lastFetchFromStorage = readLastFetchTimestamp();
+    const [fireDepartmentCallData, setFireDepartmentCallData] = useState(() => readCachedCollection('fire') ?? []);
+    const [policeDepartmentCallData, setPoliceDepartmentCallData] = useState(() => readCachedCollection('police') ?? []);
+    const [lastSuccessfulFetch, setLastSuccessfulFetch] = useState(() => lastFetchFromStorage ?? (Date.now() - pollInterval));
+    const timeoutRef = useRef(null);
+    const abortControllerRef = useRef(null);
+    const lastFetchRef = useRef(lastFetchFromStorage ?? 0);
 
     const datasetConfigs = useMemo(() => ([
         { source: 'fire', ...DATASETS.fire, setter: setFireDepartmentCallData },
         { source: 'police', ...DATASETS.police, setter: setPoliceDepartmentCallData }
     ]), [setFireDepartmentCallData, setPoliceDepartmentCallData]);
 
-    const timeWindow = useMemo(() => getTimeObject(), [refreshTick]);
-
     const fetchCollection = useCallback(async (config, signal) => {
+        const timeWindow = getTimeObject();
         const params = new URLSearchParams({
             $where: `${config.dateField} between '${timeWindow.thirtyMinutesAgo}' and '${timeWindow.currentTime}'`
         });
 
+        if (config.limit) {
+            params.set('$limit', `${config.limit}`);
+        }
+
+        if (config.orderField) {
+            params.set('$order', `${config.orderField} DESC`);
+        }
+
+        if (Array.isArray(config.selectFields) && config.selectFields.length > 0) {
+            params.set('$select', config.selectFields.join(','));
+        }
+
         return fetchData(config.endpoint, params, { signal });
-    }, [timeWindow]);
+    }, []);
 
     const fetchWithRetry = useCallback(async (config, signal, retries = 1) => {
         let attempt = 0;
@@ -46,17 +92,19 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
             try {
                 const data = await fetchCollection(config, signal);
                 if (!signal?.aborted) {
-                    config.setter(Array.isArray(data) ? data : []);
+                    const collection = Array.isArray(data) ? data : [];
+                    config.setter(collection);
+                    writeCachedCollection(config.source, collection);
                 }
-                return;
+                return true;
             } catch (error) {
                 if (signal?.aborted || error.name === 'AbortError') {
-                    return;
+                    return false;
                 }
 
                 if (attempt === retries) {
                     console.error(`Failed to fetch ${config.source} data`, error);
-                    return;
+                    return false;
                 }
 
                 await wait(delay);
@@ -64,33 +112,71 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
                 delay *= 2;
             }
         }
+        return false;
     }, [fetchCollection]);
 
     const fetchAllCollections = useCallback(async (signal) => {
-        await Promise.all(datasetConfigs.map((config) => fetchWithRetry(config, signal)));
+        const results = await Promise.all(datasetConfigs.map((config) => fetchWithRetry(config, signal)));
+        return results.some(Boolean);
     }, [datasetConfigs, fetchWithRetry]);
 
     useEffect(() => {
-        const controller = new AbortController();
-
-        fetchAllCollections(controller.signal);
-
-        return () => {
-            controller.abort();
-        };
-    }, [fetchAllCollections, refreshTick]);
-
-    useEffect(() => {
-        if (!pollInterval) {
+        if (typeof window === 'undefined') {
             return undefined;
         }
 
-        const id = setInterval(() => {
-            setRefreshTick((tick) => tick + 1);
-        }, pollInterval);
+        let cancelled = false;
 
-        return () => clearInterval(id);
-    }, [pollInterval]);
+        const scheduleFetch = (delayMs = 0) => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+
+            timeoutRef.current = window.setTimeout(async () => {
+                if (cancelled) {
+                    return;
+                }
+
+                const controller = new AbortController();
+                abortControllerRef.current = controller;
+                const success = await fetchAllCollections(controller.signal);
+                abortControllerRef.current = null;
+
+                if (success && !cancelled) {
+                    const now = Date.now();
+                    lastFetchRef.current = now;
+                    setLastSuccessfulFetch(now);
+                    writeLastFetchTimestamp(now);
+                }
+
+                if (!cancelled && pollInterval) {
+                    scheduleFetch(pollInterval);
+                }
+            }, Math.max(delayMs, 0));
+        };
+
+        const now = Date.now();
+        const timeSinceLastFetch = lastFetchRef.current ? now - lastFetchRef.current : Infinity;
+        const initialDelay = pollInterval
+            ? Math.max(pollInterval - timeSinceLastFetch, 0)
+            : 0;
+
+        scheduleFetch(initialDelay);
+        return () => {
+            cancelled = true;
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+            abortControllerRef.current?.abort();
+        };
+    }, [fetchAllCollections, pollInterval]);
+
+    useEffect(() => () => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current);
+        }
+        abortControllerRef.current?.abort();
+    }, []);
 
     const combinedData = useMemo(() => {
         const withSource = (collection, source) => collection.map((item) => {
@@ -110,6 +196,8 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
     return {
         combinedData,
         fireDepartmentCallData,
-        policeDepartmentCallData
+        policeDepartmentCallData,
+        lastSuccessfulFetch,
+        pollInterval
     };
 }
