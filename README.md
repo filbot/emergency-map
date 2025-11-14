@@ -48,7 +48,7 @@ Deploy the contents of `dist/` to your static host or kiosk image. The app autom
 See `.env.example` for default values.
 
 ## Data Sources
-- Fire incidents: [`kzjm-xkqj`](https://data.seattle.gov/Public-Safety/Fire-911/kzjm-xkqj)
+- Fire incidents: [`Seattle realtime fire 911 calls`](https://data.seattle.gov/Public-Safety/Fire-911/kzjm-xkqj)
 - Police incidents: feed currently offline (`event_number` column removed). The app skips police polling until the dataset is restored.
 
 ## Project Scripts
