@@ -23,25 +23,6 @@ const DATASETS = {
             'longitude',
             'latitude'
         ]
-    },
-    police: {
-        endpoint: 'https://data.seattle.gov/resource/33kz-ixgy.json',
-        dateField: 'cad_event_arrived_time',
-        orderField: 'cad_event_arrived_time',
-        limit: 800,
-        selectFields: [
-            'cad_event_number',
-            'event_number',
-            'arrived_time',
-            'cad_event_arrived_time',
-            'final_call_type',
-            'precinct',
-            'district_sector',
-            'longitude',
-            'latitude',
-            'blurred_latitude',
-            'blurred_longitude'
-        ]
     }
 };
 
@@ -52,16 +33,15 @@ async function wait(delay) {
 export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
     const lastFetchFromStorage = readLastFetchTimestamp();
     const [fireDepartmentCallData, setFireDepartmentCallData] = useState(() => readCachedCollection('fire') ?? []);
-    const [policeDepartmentCallData, setPoliceDepartmentCallData] = useState(() => readCachedCollection('police') ?? []);
+    const [policeDepartmentCallData] = useState([]);
     const [lastSuccessfulFetch, setLastSuccessfulFetch] = useState(() => lastFetchFromStorage ?? (Date.now() - pollInterval));
     const timeoutRef = useRef(null);
     const abortControllerRef = useRef(null);
     const lastFetchRef = useRef(lastFetchFromStorage ?? 0);
 
     const datasetConfigs = useMemo(() => ([
-        { source: 'fire', ...DATASETS.fire, setter: setFireDepartmentCallData },
-        { source: 'police', ...DATASETS.police, setter: setPoliceDepartmentCallData }
-    ]), [setFireDepartmentCallData, setPoliceDepartmentCallData]);
+        { source: 'fire', ...DATASETS.fire, setter: setFireDepartmentCallData }
+    ]), [setFireDepartmentCallData]);
 
     const fetchCollection = useCallback(async (config, signal) => {
         const timeWindow = getTimeObject();

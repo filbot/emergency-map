@@ -91,7 +91,7 @@ async function fetchInBatches(urls, cache, batchSize = 6) {
 
     while (queue.length > 0) {
         const batch = queue.splice(0, batchSize);
-        await Promise.all(batch.map((url) => fetchAndCache(url, cache))); // eslint-disable-line no-await-in-loop
+        await Promise.all(batch.map((url) => fetchAndCache(url, cache)));
     }
 }
 
@@ -107,7 +107,7 @@ async function collectTileTemplates(styleJson, apiKey, cache) {
 
         if (source.url) {
             const tileJsonUrl = ensureKey(source.url, apiKey);
-            const tileJsonResponse = await fetchAndCache(tileJsonUrl, cache); // eslint-disable-line no-await-in-loop
+            const tileJsonResponse = await fetchAndCache(tileJsonUrl, cache);
             if (!tileJsonResponse) {
                 continue;
             }

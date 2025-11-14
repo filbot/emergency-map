@@ -1,4 +1,3 @@
-/* eslint-disable react/prop-types */
 import './details.css';
 import { memo, useEffect, useMemo, useState } from 'react';
 

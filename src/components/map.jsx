@@ -1,13 +1,27 @@
-/* eslint-disable react/prop-types */
-import { useEffect, useMemo, useRef } from "react";
-import * as maptilersdk from "@maptiler/sdk";
-import "@maptiler/sdk/dist/maptiler-sdk.css";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./map.css";
 import { getMapStyleUrl } from '../config/mapConfig.js';
+import { escapeHtml } from '../libs/sanitize.js';
 
 const apiKey = import.meta.env.VITE_API_KEY;
 const styleUrl = getMapStyleUrl(apiKey);
-maptilersdk.config.apiKey = apiKey;
+
+let maptilerSdkPromise;
+
+async function loadMaptilerSdk(withApiKey) {
+    if (!maptilerSdkPromise) {
+        maptilerSdkPromise = Promise.all([
+            import("@maptiler/sdk"),
+            import("@maptiler/sdk/dist/maptiler-sdk.css")
+        ]).then(([sdk]) => sdk);
+    }
+
+    const sdk = await maptilerSdkPromise;
+    if (sdk?.config && withApiKey) {
+        sdk.config.apiKey = withApiKey;
+    }
+    return sdk;
+}
 
 const FIRE_MARKER_COLOR = "#FF0000";
 const POLICE_MARKER_COLOR = "#0057B8";
@@ -73,15 +87,17 @@ const createMarkerElement = (type) => {
     }
 
     const element = document.createElement('div');
-    const size = type === 'fire' ? 20 : 30;
-    const fill = type === 'fire' ? '#FF3434' : '#0074D9';
+    const isFire = type === 'fire';
+    const size = isFire ? 20 : 30;
+    const fill = isFire ? '#FF3434' : '#0074D9';
+    const rippleClass = isFire ? 'fire' : 'police';
     element.innerHTML = `<div class="ripple-container">
   <svg width="${size}px" height="${size}px" viewBox="0 0 30 30" xmlns="http://www.w3.org/2000/svg">
     <circle cx="15" cy="15" r="15" fill="${fill}" />
   </svg>
-  <div class="ripple ${type}"></div>
-  <div class="ripple ${type}"></div>
-  <div class="ripple ${type}"></div>
+    <div class="ripple ${rippleClass}"></div>
+    <div class="ripple ${rippleClass}"></div>
+    <div class="ripple ${rippleClass}"></div>
 </div>`;
     return element;
 };
@@ -102,19 +118,25 @@ const getCoordinates = (incident, type) => {
 
 const buildPopupHtml = (incident, type) => {
     if (type === 'fire') {
+        const time = escapeHtml(formatTime(incident.datetime));
+        const incidentType = escapeHtml(incident.type ?? '');
+        const address = escapeHtml(incident.address ?? '');
         return `
             <div class="popup-container">
-                <p class="time">${formatTime(incident.datetime)}</p>
-                <p class="type">${incident.type ?? ''}</p>
-                <p class="address">${incident.address ?? ''}</p>
+                <p class="time">${time}</p>
+                <p class="type">${incidentType}</p>
+                <p class="address">${address}</p>
             </div>`;
     }
 
+    const time = escapeHtml(formatTime(incident.arrived_time));
+    const callType = escapeHtml(incident.final_call_type ?? '');
+    const location = escapeHtml(incident.precinct ?? incident.district_sector ?? '');
     return `
             <div class="popup-container">
-                <p class="time">${formatTime(incident.arrived_time)}</p>
-                <p class="type">${incident.final_call_type ?? ''}</p>
-                <p class="address">${incident.precinct ?? incident.district_sector ?? ''}</p>
+                <p class="time">${time}</p>
+                <p class="type">${callType}</p>
+                <p class="address">${location}</p>
             </div>`;
 };
 
@@ -122,6 +144,11 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
     const mapContainerRef = useRef(null);
     const mapRef = useRef(null);
     const markersRef = useRef(new Map());
+    const sdkRef = useRef(null);
+    const styleUrlRef = useRef(styleUrl);
+    const [mapReadyVersion, setMapReadyVersion] = useState(0);
+
+    styleUrlRef.current = styleUrl;
 
     const groupedIncidents = useMemo(() => dataCollection.reduce((acc, item) => {
         if (item.source === 'fire') {
@@ -139,78 +166,104 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
             return undefined;
         }
 
-        const mapInstance = new maptilersdk.Map({
-            container: mapContainerRef.current,
-            style: styleUrl,
-            center: [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat],
-            zoom: DEFAULT_ZOOM,
-        });
+        let cancelled = false;
+        let cleanup = () => {};
 
-        const handleError = (event) => {
-            const error = event?.error;
-            if (!error || isAbortError(error)) {
-                return;
+        (async () => {
+            try {
+                const sdk = await loadMaptilerSdk(apiKey);
+                if (!sdk || cancelled || !mapContainerRef.current || mapRef.current) {
+                    return;
+                }
+
+                sdkRef.current = sdk;
+
+                const mapInstance = new sdk.Map({
+                    container: mapContainerRef.current,
+                    style: styleUrlRef.current,
+                    center: [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat],
+                    zoom: DEFAULT_ZOOM,
+                });
+
+                const handleError = (event) => {
+                    const error = event?.error;
+                    if (!error || isAbortError(error)) {
+                        return;
+                    }
+                    console.error('Map rendering error', error);
+                };
+
+                mapInstance.on('error', handleError);
+                mapRef.current = mapInstance;
+                setMapReadyVersion((value) => value + 1);
+                const markersForCleanup = markersRef.current;
+
+                cleanup = () => {
+                    mapInstance.off('error', handleError);
+                    markersForCleanup.forEach(({ marker }) => marker.remove());
+                    markersForCleanup.clear();
+                    if (mapRef.current === mapInstance) {
+                        mapRef.current = null;
+                    }
+
+                    const finalizeRemoval = () => {
+                        try {
+                            mapInstance.remove();
+                        } catch (error) {
+                            if (!isAbortError(error)) {
+                                console.error('Failed to remove map instance', error);
+                            }
+                        }
+                    };
+
+                    const loaded = typeof mapInstance.loaded === 'function'
+                        ? mapInstance.loaded()
+                        : mapInstance.isStyleLoaded?.();
+
+                    if (loaded) {
+                        finalizeRemoval();
+                        return;
+                    }
+
+                    let resolved = false;
+                    const cleanupDeferred = () => {
+                        if (resolved) {
+                            return;
+                        }
+                        resolved = true;
+                        finalizeRemoval();
+                    };
+
+                    const timeoutId = window.setTimeout(cleanupDeferred, 3000);
+                    mapInstance.once('load', () => {
+                        window.clearTimeout(timeoutId);
+                        cleanupDeferred();
+                    });
+                    mapInstance.once('error', (event) => {
+                        if (isAbortError(event?.error)) {
+                            return;
+                        }
+                        window.clearTimeout(timeoutId);
+                        cleanupDeferred();
+                    });
+                };
+            } catch (error) {
+                if (!cancelled) {
+                    console.error('Failed to initialize map', error);
+                }
             }
-            console.error('Map rendering error', error);
-        };
-
-        mapInstance.on('error', handleError);
-        mapRef.current = mapInstance;
+        })();
 
         return () => {
-            mapInstance.off('error', handleError);
-            markersRef.current.forEach(({ marker }) => marker.remove());
-            markersRef.current.clear();
-            if (mapRef.current === mapInstance) {
-                mapRef.current = null;
-            }
-
-            const finalizeRemoval = () => {
-                try {
-                    mapInstance.remove();
-                } catch (error) {
-                    if (!isAbortError(error)) {
-                        console.error('Failed to remove map instance', error);
-                    }
-                }
-            };
-
-            const loaded = typeof mapInstance.loaded === 'function'
-                ? mapInstance.loaded()
-                : mapInstance.isStyleLoaded?.();
-
-            if (loaded) {
-                finalizeRemoval();
-                return;
-            }
-
-            let resolved = false;
-            const cleanupDeferred = () => {
-                if (resolved) {
-                    return;
-                }
-                resolved = true;
-                finalizeRemoval();
-            };
-
-            const timeoutId = window.setTimeout(cleanupDeferred, 3000);
-            mapInstance.once('load', () => {
-                window.clearTimeout(timeoutId);
-                cleanupDeferred();
-            });
-            mapInstance.once('error', (event) => {
-                if (isAbortError(event?.error)) {
-                    return;
-                }
-                window.clearTimeout(timeoutId);
-                cleanupDeferred();
-            });
+            cancelled = true;
+            cleanup();
         };
-    }, [styleUrl]);
+    }, []);
 
     useEffect(() => {
         const mapInstance = mapRef.current;
-        if (!mapInstance) {
+        const sdk = sdkRef.current;
+        if (!mapInstance || !sdk) {
             return;
         }
 
@@ -221,7 +274,7 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
             return;
         }
 
-        const bounds = new maptilersdk.LngLatBounds();
+        const bounds = new sdk.LngLatBounds();
         const activeMarkerIds = new Set();
 
         const upsertMarker = (incident, type) => {
@@ -244,8 +297,8 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
                 const element = createMarkerElement(type);
                 const color = type === 'fire' ? FIRE_MARKER_COLOR : POLICE_MARKER_COLOR;
                 const markerOptions = element ? { element } : { color };
-                const popup = new maptilersdk.Popup({ closeButton: false }).setHTML(popupHtml);
-                const marker = new maptilersdk.Marker(markerOptions)
+                const popup = new sdk.Popup({ closeButton: false }).setHTML(popupHtml);
+                const marker = new sdk.Marker(markerOptions)
                     .setLngLat([lng, lat])
                     .setPopup(popup)
                     .addTo(mapInstance);
@@ -307,7 +360,7 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
                 mapInstance.off('load', pendingLoadHandler);
             }
         };
-    }, [fireIncidents, policeIncidents]);
+    }, [fireIncidents, policeIncidents, mapReadyVersion]);
 
     return (
         <div className="map-wrap">
