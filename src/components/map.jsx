@@ -276,6 +276,7 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
 
         const bounds = new sdk.LngLatBounds();
         const activeMarkerIds = new Set();
+        let lastCoordinate = null;
 
         const upsertMarker = (incident, type) => {
             const { lng, lat } = getCoordinates(incident, type);
@@ -308,6 +309,7 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
 
             activeMarkerIds.add(markerId);
             bounds.extend([lng, lat]);
+            lastCoordinate = [lng, lat];
         };
 
         fireIncidents.forEach((incident) => upsertMarker(incident, 'fire'));
@@ -322,7 +324,45 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
             if (!canvas || canvas.width === 0 || canvas.height === 0) {
                 return;
             }
-            mapInstance.fitBounds(bounds, { padding: 100 });
+            if (activeMarkerIds.size <= 1 && lastCoordinate) {
+                const maxZoom = typeof mapInstance.getMaxZoom === 'function'
+                    ? mapInstance.getMaxZoom()
+                    : 20;
+                const targetZoom = Math.min(Math.max(DEFAULT_ZOOM + 2, 15), maxZoom);
+                mapInstance.easeTo({
+                    center: lastCoordinate,
+                    zoom: targetZoom,
+                    duration: 0
+                });
+                return;
+            }
+
+            const cloneBounds = typeof bounds.clone === 'function' ? bounds.clone() : bounds;
+            const paddedBounds = typeof cloneBounds.pad === 'function'
+                ? cloneBounds.pad(0.005)
+                : cloneBounds;
+            const padding = 56;
+            const camera = typeof mapInstance.cameraForBounds === 'function'
+                ? mapInstance.cameraForBounds(paddedBounds, { padding })
+                : null;
+
+            if (camera) {
+                const maxZoom = typeof mapInstance.getMaxZoom === 'function'
+                    ? mapInstance.getMaxZoom()
+                    : 20;
+                const zoom = Math.min(camera.zoom ?? DEFAULT_ZOOM, maxZoom);
+                mapInstance.easeTo({
+                    ...camera,
+                    zoom,
+                    duration: 0
+                });
+                return;
+            }
+
+            mapInstance.fitBounds(paddedBounds, {
+                padding,
+                duration: 0
+            });
         };
 
         if (hasBounds) {
