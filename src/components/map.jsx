@@ -174,7 +174,20 @@ export default function EmergencyMap({ dataCollection = [], emptyState = null } 
     }, { fire: [], police: [] }), [dataCollection]);
 
     const { fire: fireIncidents, police: policeIncidents } = groupedIncidents;
-    const hasActiveIncidents = fireIncidents.length > 0 || policeIncidents.length > 0;
+    const mappableFireIncidents = useMemo(() => fireIncidents.filter((incident) => {
+        const { lng, lat } = getCoordinates(incident, 'fire');
+        return isValidCoordinate(lng, lat);
+    }), [fireIncidents]);
+
+    const mappablePoliceIncidents = useMemo(() => policeIncidents.filter((incident) => {
+        const { lng, lat } = getCoordinates(incident, 'police');
+        return isValidCoordinate(lng, lat);
+    }), [policeIncidents]);
+
+    const hasAnyIncidents = fireIncidents.length > 0 || policeIncidents.length > 0;
+    const mappableIncidentCount = mappableFireIncidents.length + mappablePoliceIncidents.length;
+    const hasMappableIncidents = mappableIncidentCount > 0;
+    const awaitingCoordinates = hasAnyIncidents && !hasMappableIncidents;
 
     useEffect(() => {
         if (typeof window === 'undefined' || !mapContainerRef.current || mapRef.current) {
@@ -282,15 +295,14 @@ export default function EmergencyMap({ dataCollection = [], emptyState = null } 
             return;
         }
 
-        mapInstance.easeTo({
-            center: [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat],
-            zoom: DEFAULT_ZOOM,
-            duration: 0
-        });
-
-        if (!hasActiveIncidents) {
+        if (!hasMappableIncidents) {
             markersRef.current.forEach(({ marker }) => marker.remove());
             markersRef.current.clear();
+            mapInstance.easeTo({
+                center: [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat],
+                zoom: DEFAULT_ZOOM,
+                duration: 0
+            });
             return;
         }
 
@@ -332,8 +344,8 @@ export default function EmergencyMap({ dataCollection = [], emptyState = null } 
             lastCoordinate = [lng, lat];
         };
 
-        fireIncidents.forEach((incident) => upsertMarker(incident, 'fire'));
-        policeIncidents.forEach((incident) => upsertMarker(incident, 'police'));
+        mappableFireIncidents.forEach((incident) => upsertMarker(incident, 'fire'));
+        mappablePoliceIncidents.forEach((incident) => upsertMarker(incident, 'police'));
 
         const hasBounds = typeof bounds.isEmpty === 'function' ? !bounds.isEmpty() : activeMarkerIds.size > 0;
 
@@ -420,18 +432,32 @@ export default function EmergencyMap({ dataCollection = [], emptyState = null } 
                 mapInstance.off('load', pendingLoadHandler);
             }
         };
-    }, [fireIncidents, policeIncidents, mapReadyVersion]);
+    }, [hasMappableIncidents, mapReadyVersion, mappableFireIncidents, mappablePoliceIncidents]);
 
-    const overlay = !hasActiveIncidents && emptyState ? (
-        <EmptyState
-            title={emptyState.title}
-            body={emptyState.body}
-            hint={emptyState.hint}
-            icon={emptyState.icon}
-            tone={emptyState.tone}
-            context="map"
-        />
-    ) : null;
+    let overlay = null;
+    if (!hasAnyIncidents && emptyState) {
+        overlay = (
+            <EmptyState
+                title={emptyState.title}
+                body={emptyState.body}
+                hint={emptyState.hint}
+                icon={emptyState.icon}
+                tone={emptyState.tone}
+                context="map"
+            />
+        );
+    } else if (awaitingCoordinates) {
+        overlay = (
+            <EmptyState
+                title="Awaiting map coordinates"
+                body="The latest incidents have not published latitude/longitude yet."
+                hint="Markers will appear automatically once the feed includes coordinates."
+                icon="?"
+                tone="warning"
+                context="map"
+            />
+        );
+    }
 
     return (
         <div className="map-wrap">
