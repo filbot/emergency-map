@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_ZOOM_LEVELS, SEATTLE_BOUNDS, TILE_CACHE_NAME, getStyleBaseUrl } from '../config/mapConfig.js';
 import { prefetchTiles, registerTileCacheServiceWorker } from '../libs/tileCache.js';
 
+/**
+ * Prefetches and monitors tile caching so the kiosk map can operate offline.
+ * @param {Object} options Hook configuration.
+ * @returns {{isPrefetching: boolean, lastPrefetch: number|null, error: Object|null, retry: () => Promise<boolean>}}
+ */
 export function useTileCache(options = {}) {
     const {
         bounds = SEATTLE_BOUNDS,

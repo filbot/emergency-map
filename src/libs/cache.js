@@ -13,6 +13,12 @@ function buildCollectionKey(source) {
     return `${STORAGE_PREFIX}:collection:${source}`;
 }
 
+/**
+ * Reads and validates a cached collection from sessionStorage.
+ * @param {string} source Cache key suffix such as "fire".
+ * @param {number} [maxAgeMs=300000] Maximum age before eviction.
+ * @returns {Array<Object>|undefined}
+ */
 export function readCachedCollection(source, maxAgeMs = CACHE_TTL_MS) {
     const storage = getSessionStorage();
     if (!storage) {
@@ -43,6 +49,11 @@ export function readCachedCollection(source, maxAgeMs = CACHE_TTL_MS) {
     }
 }
 
+/**
+ * Writes a collection snapshot into sessionStorage with a timestamp.
+ * @param {string} source Cache key suffix.
+ * @param {Array<Object>} data Serializable collection.
+ */
 export function writeCachedCollection(source, data) {
     const storage = getSessionStorage();
     if (!storage || !Array.isArray(data)) {
@@ -59,6 +70,10 @@ export function writeCachedCollection(source, data) {
     }
 }
 
+/**
+ * Retrieves the timestamp of the last successful fetch.
+ * @returns {number|undefined}
+ */
 export function readLastFetchTimestamp() {
     const storage = getSessionStorage();
     if (!storage) {
@@ -75,6 +90,10 @@ export function readLastFetchTimestamp() {
     return parsed;
 }
 
+/**
+ * Persists the timestamp of the last successful fetch.
+ * @param {number} timestamp Epoch milliseconds.
+ */
 export function writeLastFetchTimestamp(timestamp) {
     const storage = getSessionStorage();
     if (!storage || !Number.isFinite(timestamp)) {

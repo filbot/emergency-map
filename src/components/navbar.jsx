@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import "./navbar.css";
 
+/**
+ * Displays the heading bar with a realtime clock synced to the user's locale.
+ * @returns {JSX.Element}
+ */
 export default function Navbar() {
     const [currentTime, setCurrentTime] = useState(new Date());
 

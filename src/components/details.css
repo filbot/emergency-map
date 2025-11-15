@@ -11,6 +11,14 @@
     font-style: normal;
 }
 
+.details-container--empty {
+    align-items: flex-start;
+}
+
+.details-container--empty .empty-state {
+    margin-top: 1rem;
+}
+
 .details {
     display: grid;
     grid-template-columns: repeat(5, 1fr); /* Adjust the number of columns as needed */

@@ -1,3 +1,7 @@
+/**
+ * Returns ISO-8601 timestamps for the current moment and 30 minutes ago.
+ * @returns {{currentTime: string, thirtyMinutesAgo: string}}
+ */
 export function getTimeObject() {
     const THIRTY_MINUTES = 1800000;
     const now = new Date();
@@ -20,6 +24,13 @@ export function getTimeObject() {
     };
 }
 
+/**
+ * Fetches JSON data with shared query parameter transformation and headers.
+ * @param {string} endpoint Socrata endpoint URL.
+ * @param {URLSearchParams|Object} queryParams Query parameters to append.
+ * @param {{signal?: AbortSignal}} [options] Fetch options.
+ * @returns {Promise<any>}
+ */
 export async function fetchData(endpoint, queryParams, options = {}) {
     const url = new URL(endpoint);
     const params = queryParams instanceof URLSearchParams

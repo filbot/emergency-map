@@ -1,6 +1,13 @@
 import { memo } from 'react';
 import './statusBanner.css';
 
+/**
+ * Renders a dismissible status banner for background service issues.
+ * @param {Object} props React props.
+ * @param {Array<Object>} [props.errors] Collection of active errors to surface.
+ * @param {(error: Object) => void} [props.onRetry] Optional retry handler injected per error.
+ * @returns {JSX.Element|null}
+ */
 function StatusBanner({ errors = [], onRetry }) {
     if (!Array.isArray(errors) || errors.length === 0) {
         return null;

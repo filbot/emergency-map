@@ -3,6 +3,10 @@ import { useEffect, useRef } from 'react';
 const LOG_THROTTLE_MS = 60000;
 const DEFAULT_ENDPOINT = import.meta.env.VITE_HEARTBEAT_URL?.trim() || null;
 
+/**
+ * Sends a lightweight heartbeat signal so external watchdogs can verify uptime.
+ * @param {Object} options Optional overrides for endpoint and timing.
+ */
 export function useWatchdogHeartbeat(options = {}) {
     const {
         endpoint = DEFAULT_ENDPOINT,

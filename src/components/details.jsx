@@ -1,5 +1,6 @@
 import './details.css';
 import { memo, useEffect, useMemo, useState } from 'react';
+import EmptyState from './emptyState.jsx';
 
 const COUNTDOWN_INTERVAL_MS = 50;
 const MAX_POLICE_ITEMS = 10;
@@ -44,6 +45,13 @@ function useRefreshCountdown(lastUpdated, refreshIntervalMs) {
     return useMemo(() => formatCountdown(remainingMs), [remainingMs]);
 }
 
+/**
+ * Lists incidents for both departments.
+ * @param {Object} props React props.
+ * @param {Array<Object>} props.fireIncidents Fire incidents to render.
+ * @param {Array<Object>} props.policeIncidents Police incidents to render.
+ * @returns {JSX.Element}
+ */
 const IncidentList = memo(function IncidentList({ fireIncidents, policeIncidents }) {
     return (
         <div className="details">
@@ -65,30 +73,55 @@ const IncidentList = memo(function IncidentList({ fireIncidents, policeIncidents
     );
 });
 
+/**
+ * Displays a live countdown for the next refresh.
+ * @param {Object} props React props.
+ * @param {number} [props.lastUpdated] Timestamp of the last successful poll.
+ * @param {number} props.refreshIntervalMs Polling cadence.
+ * @returns {JSX.Element}
+ */
 function RefreshCountdown({ lastUpdated, refreshIntervalMs }) {
     const countdown = useRefreshCountdown(lastUpdated, refreshIntervalMs);
     return <p className="last-updated-count">Next update: {countdown}</p>;
 }
 
+/**
+ * Presents the textual incident list and handles zero-state messaging.
+ * @param {Object} props React props.
+ * @returns {JSX.Element}
+ */
 export default function Details({
     fireIncidents = [],
     policeIncidents = [],
     totalIncidents = 0,
     lastUpdated,
-    refreshIntervalMs = 300000
+    refreshIntervalMs = 300000,
+    emptyState = null
 }) {
     const limitedPolice = useMemo(
         () => policeIncidents.slice(0, MAX_POLICE_ITEMS),
         [policeIncidents]
     );
+    const shouldShowEmptyState = totalIncidents === 0 && emptyState;
 
     return (
-        <div className="details-container">
+        <div className={`details-container${shouldShowEmptyState ? ' details-container--empty' : ''}`}>
             <div className="details-header">
                 <p className="incident-count">Incidents in the past 30 minutes: {totalIncidents}</p>
                 <RefreshCountdown lastUpdated={lastUpdated} refreshIntervalMs={refreshIntervalMs} />
             </div>
-            <IncidentList fireIncidents={fireIncidents} policeIncidents={limitedPolice} />
+            {shouldShowEmptyState ? (
+                <EmptyState
+                    title={emptyState.title}
+                    body={emptyState.body}
+                    hint={emptyState.hint}
+                    icon={emptyState.icon}
+                    tone={emptyState.tone}
+                    context="panel"
+                />
+            ) : (
+                <IncidentList fireIncidents={fireIncidents} policeIncidents={limitedPolice} />
+            )}
         </div>
     );
 }

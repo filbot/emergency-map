@@ -2,12 +2,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "./map.css";
 import { getMapStyleUrl } from '../config/mapConfig.js';
 import { escapeHtml } from '../libs/sanitize.js';
+import EmptyState from './emptyState.jsx';
 
 const apiKey = import.meta.env.VITE_API_KEY;
 const styleUrl = getMapStyleUrl(apiKey);
 
 let maptilerSdkPromise;
 
+/**
+ * Lazily loads the MapTiler SDK bundle and configures the API key.
+ * @param {string} withApiKey MapTiler API key.
+ * @returns {Promise<import('@maptiler/sdk')>}
+ */
 async function loadMaptilerSdk(withApiKey) {
     if (!maptilerSdkPromise) {
         maptilerSdkPromise = Promise.all([
@@ -140,7 +146,15 @@ const buildPopupHtml = (incident, type) => {
             </div>`;
 };
 
-export default function EmergencyMap({ dataCollection = [] } = {}) {
+/**
+ * Displays the realtime incident map and overlays empty-state messaging when needed.
+ * @param {Object} props React props.
+ * @param {Array<Object>} [props.dataCollection=[]] Combined incident collection.
+ * @param {{title:string, body?:string, hint?:string, tone?:string, icon?:string}|null} [props.emptyState=null]
+ * Contextual empty-state metadata passed from the data hook.
+ * @returns {JSX.Element}
+ */
+export default function EmergencyMap({ dataCollection = [], emptyState = null } = {}) {
     const mapContainerRef = useRef(null);
     const mapRef = useRef(null);
     const markersRef = useRef(new Map());
@@ -160,6 +174,7 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
     }, { fire: [], police: [] }), [dataCollection]);
 
     const { fire: fireIncidents, police: policeIncidents } = groupedIncidents;
+    const hasActiveIncidents = fireIncidents.length > 0 || policeIncidents.length > 0;
 
     useEffect(() => {
         if (typeof window === 'undefined' || !mapContainerRef.current || mapRef.current) {
@@ -273,8 +288,7 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
             duration: 0
         });
 
-        const hasIncidents = fireIncidents.length > 0 || policeIncidents.length > 0;
-        if (!hasIncidents) {
+        if (!hasActiveIncidents) {
             markersRef.current.forEach(({ marker }) => marker.remove());
             markersRef.current.clear();
             return;
@@ -408,9 +422,21 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
         };
     }, [fireIncidents, policeIncidents, mapReadyVersion]);
 
+    const overlay = !hasActiveIncidents && emptyState ? (
+        <EmptyState
+            title={emptyState.title}
+            body={emptyState.body}
+            hint={emptyState.hint}
+            icon={emptyState.icon}
+            tone={emptyState.tone}
+            context="map"
+        />
+    ) : null;
+
     return (
         <div className="map-wrap">
             <div ref={mapContainerRef} className="map" />
+            {overlay}
         </div>
     );
 }

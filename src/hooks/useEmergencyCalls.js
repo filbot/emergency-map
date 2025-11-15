@@ -30,12 +30,30 @@ async function wait(delay) {
     return new Promise((resolve) => setTimeout(resolve, delay));
 }
 
+/**
+ * Polls emergency datasets, merges them, and exposes derived UI-friendly state.
+ * @param {number} [pollInterval=300000] Polling cadence in milliseconds.
+ * @returns {{
+ *  combinedData: Array<Object>,
+ *  fireDepartmentCallData: Array<Object>,
+ *  policeDepartmentCallData: Array<Object>,
+ *  lastSuccessfulFetch: number,
+ *  pollInterval: number,
+ *  dataErrors: Array<Object>,
+ *  emptyState: {title: string, body?: string, hint?: string, tone?: string, icon?: string}|null,
+ *  isFetching: boolean,
+ *  lastFetchAttempt: number|null,
+ *  isStale: boolean
+ * }}
+ */
 export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
     const lastFetchFromStorage = readLastFetchTimestamp();
     const [fireDepartmentCallData, setFireDepartmentCallData] = useState(() => readCachedCollection('fire') ?? []);
     const [policeDepartmentCallData] = useState([]);
     const [lastSuccessfulFetch, setLastSuccessfulFetch] = useState(() => lastFetchFromStorage ?? (Date.now() - pollInterval));
     const [dataErrors, setDataErrors] = useState([]);
+    const [isFetching, setIsFetching] = useState(false);
+    const [lastFetchAttempt, setLastFetchAttempt] = useState(lastFetchFromStorage ?? null);
     const timeoutRef = useRef(null);
     const abortControllerRef = useRef(null);
     const lastFetchRef = useRef(lastFetchFromStorage ?? 0);
@@ -153,6 +171,8 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
                     return;
                 }
 
+                setIsFetching(true);
+                setLastFetchAttempt(Date.now());
                 const controller = new AbortController();
                 abortControllerRef.current = controller;
                 const success = await fetchAllCollections(controller.signal);
@@ -163,6 +183,10 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
                     lastFetchRef.current = now;
                     setLastSuccessfulFetch(now);
                     writeLastFetchTimestamp(now);
+                }
+
+                if (!cancelled) {
+                    setIsFetching(false);
                 }
 
                 if (!cancelled && pollInterval) {
@@ -209,12 +233,53 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
         ];
     }, [fireDepartmentCallData, policeDepartmentCallData]);
 
+    const staleThresholdMs = pollInterval ? pollInterval * 1.5 : FIVE_MINUTES * 1.5;
+    const isStale = !lastSuccessfulFetch || (Date.now() - lastSuccessfulFetch) > staleThresholdMs;
+
+    const emptyState = useMemo(() => {
+        if (combinedData.length > 0) {
+            return null;
+        }
+
+        if (isFetching && !lastSuccessfulFetch) {
+            return {
+                title: 'Syncing live incidents',
+                body: 'We are waiting for the first update from the Seattle Fire and Police feeds.',
+                hint: 'The map will populate automatically.',
+                tone: 'loading',
+                icon: '~'
+            };
+        }
+
+        if (dataErrors.length > 0) {
+            return {
+                title: 'Data temporarily unavailable',
+                body: 'We could not reach the live feeds. The dashboard will retry automatically and continue showing the last good update.',
+                hint: 'Standing by for new data...',
+                tone: 'warning',
+                icon: '!'
+            };
+        }
+
+        return {
+            title: 'No active 911 calls',
+            body: 'Seattle Fire and Police reported zero incidents within the last 30 minutes.',
+            hint: 'Monitoring for new calls...',
+            tone: 'info',
+            icon: 'i'
+        };
+    }, [combinedData.length, dataErrors.length, isFetching, lastSuccessfulFetch]);
+
     return {
         combinedData,
         fireDepartmentCallData,
         policeDepartmentCallData,
         lastSuccessfulFetch,
         pollInterval,
-        dataErrors
+        dataErrors,
+        emptyState,
+        isFetching,
+        lastFetchAttempt,
+        isStale
     };
 }

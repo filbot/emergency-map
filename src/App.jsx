@@ -9,6 +9,10 @@ import { useWatchdogHeartbeat } from './hooks/useWatchdogHeartbeat.js';
 
 const EmergencyMap = lazy(() => import('./components/map.jsx'));
 
+/**
+ * Skeleton fallback rendered while the map bundle is loading.
+ * @returns {JSX.Element}
+ */
 function MapFallback() {
     return (
         <div className="map-wrap">
@@ -19,6 +23,10 @@ function MapFallback() {
     );
 }
 
+/**
+ * Root component that wires live data hooks to presentation components.
+ * @returns {JSX.Element}
+ */
 function App() {
     const {
         combinedData,
@@ -26,7 +34,8 @@ function App() {
         policeDepartmentCallData,
         lastSuccessfulFetch,
         pollInterval: pollIntervalMs,
-        dataErrors
+        dataErrors,
+        emptyState
     } = useEmergencyCalls();
     const {
         isPrefetching: isTileCachePrefetching,
@@ -58,7 +67,7 @@ function App() {
             <Navbar />
             <StatusBanner errors={activeErrors} onRetry={handleRetryRequest} />
             <Suspense fallback={<MapFallback />}>
-                <EmergencyMap dataCollection={combinedData} />
+                <EmergencyMap dataCollection={combinedData} emptyState={emptyState} />
             </Suspense>
             <Details
                 fireIncidents={fireDepartmentCallData}
@@ -66,6 +75,7 @@ function App() {
                 totalIncidents={combinedData.length}
                 lastUpdated={lastSuccessfulFetch}
                 refreshIntervalMs={pollIntervalMs}
+                emptyState={emptyState}
             />
         </div>
     );
