@@ -183,18 +183,25 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
                 setLastFetchAttempt(Date.now());
                 const controller = new AbortController();
                 abortControllerRef.current = controller;
-                const success = await fetchAllCollections(controller.signal);
-                abortControllerRef.current = null;
+                let success = false;
 
-                if (success && !cancelled) {
-                    const now = Date.now();
-                    lastFetchRef.current = now;
-                    setLastSuccessfulFetch(now);
-                    writeLastFetchTimestamp(now);
-                }
-
-                if (!cancelled) {
-                    setIsFetching(false);
+                try {
+                    success = await fetchAllCollections(controller.signal);
+                    if (success && !cancelled) {
+                        const now = Date.now();
+                        lastFetchRef.current = now;
+                        setLastSuccessfulFetch(now);
+                        writeLastFetchTimestamp(now);
+                    }
+                } catch (error) {
+                    if (!cancelled) {
+                        console.error('Unexpected data fetch failure', error);
+                    }
+                } finally {
+                    abortControllerRef.current = null;
+                    if (!cancelled) {
+                        setIsFetching(false);
+                    }
                 }
 
                 if (!cancelled && pollInterval) {

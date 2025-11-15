@@ -7,18 +7,30 @@ const DEFAULT_PREFETCH_OPTIONS = {
     styleUrl: getStyleBaseUrl()
 };
 
+let tileCacheRegistrationPromise;
+
 export async function registerTileCacheServiceWorker(swPath = `${import.meta.env.BASE_URL}tile-cache-sw.js`) {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
         return undefined;
     }
 
-    try {
-        const registration = await navigator.serviceWorker.register(swPath, { scope: import.meta.env.BASE_URL });
-        return registration;
-    } catch (error) {
-        console.error('Failed to register tile cache service worker', error);
-        throw error;
+    if (!tileCacheRegistrationPromise) {
+        tileCacheRegistrationPromise = (async () => {
+            try {
+                const existing = await navigator.serviceWorker.getRegistration(import.meta.env.BASE_URL);
+                if (existing) {
+                    return existing;
+                }
+                return navigator.serviceWorker.register(swPath, { scope: import.meta.env.BASE_URL });
+            } catch (error) {
+                console.error('Failed to register tile cache service worker', error);
+                tileCacheRegistrationPromise = undefined;
+                throw error;
+            }
+        })();
     }
+
+    return tileCacheRegistrationPromise;
 }
 
 export async function prefetchTiles(options = {}) {

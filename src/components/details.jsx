@@ -2,8 +2,9 @@ import './details.css';
 import { memo, useEffect, useMemo, useState } from 'react';
 import EmptyState from './emptyState.jsx';
 
-const COUNTDOWN_INTERVAL_MS = 50;
+const COUNTDOWN_INTERVAL_MS = 1000; // ticking once per second is sufficient for MM:SS display
 const MAX_POLICE_ITEMS = 10;
+const MAX_FIRE_ITEMS = 40;
 
 const buildIncidentKey = (item, prefix, index) => item.cad_event_number
     || item.incident_number
@@ -14,8 +15,7 @@ const formatCountdown = (remainingMs) => {
     const safeMs = Math.max(remainingMs, 0);
     const minutes = Math.floor(safeMs / 60000);
     const seconds = Math.floor((safeMs % 60000) / 1000);
-    const centiseconds = Math.floor((safeMs % 1000) / 10);
-    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}:${String(centiseconds).padStart(2, '0')}`;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
 const getRemainingTime = (lastUpdated, refreshIntervalMs) => {
@@ -98,6 +98,10 @@ export default function Details({
     refreshIntervalMs = 300000,
     emptyState = null
 }) {
+    const limitedFire = useMemo(
+        () => fireIncidents.slice(0, MAX_FIRE_ITEMS),
+        [fireIncidents]
+    );
     const limitedPolice = useMemo(
         () => policeIncidents.slice(0, MAX_POLICE_ITEMS),
         [policeIncidents]
@@ -120,7 +124,7 @@ export default function Details({
                     context="panel"
                 />
             ) : (
-                <IncidentList fireIncidents={fireIncidents} policeIncidents={limitedPolice} />
+                <IncidentList fireIncidents={limitedFire} policeIncidents={limitedPolice} />
             )}
         </div>
     );
