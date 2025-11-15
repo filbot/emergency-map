@@ -37,6 +37,29 @@ Emergency Map is a React + Vite kiosk application that monitors Seattle Fire and
 
 Deploy the contents of `dist/` to your static host or kiosk image. The app automatically fetches new incidents every five minutes once it is running.
 
+## Demo URL Flags
+Append `?demo=` parameters to the dashboard URL while developing to showcase different operational states without touching the data pipeline. Flags are case-insensitive and can be comma-separated (for example, `?demo=no-data,errors`).
+
+**How to use the demo query params**
+- Run the dev server (`npm run dev`) and open the printed URL (usually `http://localhost:5173`).
+- Add `?demo=<flag>` to the end of the URL, or `&demo=<flag>` if other query params already exist.
+- Chain multiple flags by separating them with commas (`?demo=loading,no-data`). The order does not matter.
+- Remove the entire `demo` parameter (or refresh without it) to return to live data.
+
+**Example URLs**
+- `http://localhost:5173/?demo=loading`
+- `http://localhost:5173/?demo=no-data,errors`
+- `http://localhost:5173/?demo=tile-error`
+
+| Flag | Effect |
+| --- | --- |
+| `loading` | Forces the "Syncing live incidents" state to mimic the first data pull. |
+| `no-data` | Empties the incident collections so the "No active 911 calls" message appears. |
+| `errors` | Injects a simulated data feed outage and surfaces the status banner. |
+| `tile-error` | Shows the tile cache outage messaging (“Map tiles are offline”). |
+
+Combine flags as needed to rehearse kiosk messaging scenarios.
+
 ## Environment Variables
 | Variable | Required | Description |
 | --- | --- | --- |

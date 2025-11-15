@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchData, getTimeObject } from '../libs/utilites.js';
+import { getDemoFlags } from '../config/demoFlags.js';
 import {
     readCachedCollection,
     readLastFetchTimestamp,
@@ -66,6 +67,13 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
             setter: setFireDepartmentCallData
         }
     ]), [setFireDepartmentCallData]);
+
+    const demoFlags = useMemo(() => getDemoFlags(), []);
+    const demoConfig = useMemo(() => ({
+        forceEmpty: demoFlags.includes('no-data'),
+        forceLoading: demoFlags.includes('loading'),
+        forceError: demoFlags.includes('errors')
+    }), [demoFlags]);
 
     const clearDatasetError = useCallback((source) => {
         setDataErrors((previous) => previous.filter((entry) => entry.source !== source));
@@ -233,15 +241,48 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
         ];
     }, [fireDepartmentCallData, policeDepartmentCallData]);
 
+    const viewFireData = demoConfig.forceEmpty ? [] : fireDepartmentCallData;
+    const viewPoliceData = demoConfig.forceEmpty ? [] : policeDepartmentCallData;
+    const viewCombinedData = demoConfig.forceEmpty ? [] : combinedData;
+    const viewIsFetching = demoConfig.forceLoading ? true : isFetching;
+    const viewLastSuccessfulFetch = demoConfig.forceLoading ? null : lastSuccessfulFetch;
+
+    const demoDataError = useMemo(() => {
+        if (!demoConfig.forceError) {
+            return null;
+        }
+        return {
+            id: 'demo-data-feed',
+            source: 'demo-data-feed',
+            friendlyName: 'Live data feeds',
+            message: 'Demo mode: Unable to reach the Seattle Fire and Police feeds.',
+            detail: 'Injected via ?demo=errors.',
+            timestamp: Date.now(),
+            canRetry: false
+        };
+    }, [demoConfig.forceError]);
+
+    const viewDataErrors = useMemo(() => {
+        if (!demoDataError) {
+            return dataErrors;
+        }
+
+        const alreadyIncluded = dataErrors.some((entry) => entry.id === demoDataError.id);
+        if (alreadyIncluded) {
+            return dataErrors;
+        }
+        return [...dataErrors, demoDataError];
+    }, [dataErrors, demoDataError]);
+
     const staleThresholdMs = pollInterval ? pollInterval * 1.5 : FIVE_MINUTES * 1.5;
-    const isStale = !lastSuccessfulFetch || (Date.now() - lastSuccessfulFetch) > staleThresholdMs;
+    const isStale = !viewLastSuccessfulFetch || (Date.now() - viewLastSuccessfulFetch) > staleThresholdMs;
 
     const emptyState = useMemo(() => {
-        if (combinedData.length > 0) {
+        if (viewCombinedData.length > 0) {
             return null;
         }
 
-        if (isFetching && !lastSuccessfulFetch) {
+        if (viewIsFetching && !viewLastSuccessfulFetch) {
             return {
                 title: 'Syncing live incidents',
                 body: 'We are waiting for the first update from the Seattle Fire and Police feeds.',
@@ -251,7 +292,7 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
             };
         }
 
-        if (dataErrors.length > 0) {
+        if (viewDataErrors.length > 0) {
             return {
                 title: 'Data temporarily unavailable',
                 body: 'We could not reach the live feeds. The dashboard will retry automatically and continue showing the last good update.',
@@ -268,17 +309,17 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
             tone: 'info',
             icon: 'i'
         };
-    }, [combinedData.length, dataErrors.length, isFetching, lastSuccessfulFetch]);
+    }, [viewCombinedData.length, viewDataErrors.length, viewIsFetching, viewLastSuccessfulFetch]);
 
     return {
-        combinedData,
-        fireDepartmentCallData,
-        policeDepartmentCallData,
-        lastSuccessfulFetch,
+        combinedData: viewCombinedData,
+        fireDepartmentCallData: viewFireData,
+        policeDepartmentCallData: viewPoliceData,
+        lastSuccessfulFetch: viewLastSuccessfulFetch,
         pollInterval,
-        dataErrors,
+        dataErrors: viewDataErrors,
         emptyState,
-        isFetching,
+        isFetching: viewIsFetching,
         lastFetchAttempt,
         isStale
     };

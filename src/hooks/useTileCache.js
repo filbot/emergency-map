@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_ZOOM_LEVELS, SEATTLE_BOUNDS, TILE_CACHE_NAME, getStyleBaseUrl } from '../config/mapConfig.js';
 import { prefetchTiles, registerTileCacheServiceWorker } from '../libs/tileCache.js';
+import { hasDemoFlag } from '../config/demoFlags.js';
 
 /**
  * Prefetches and monitors tile caching so the kiosk map can operate offline.
@@ -137,8 +138,24 @@ export function useTileCache(options = {}) {
 
     const retry = useCallback(() => performPrefetch(), [performPrefetch]);
 
+    const demoTileError = useMemo(() => {
+        if (!hasDemoFlag('tile-error')) {
+            return null;
+        }
+        return {
+            id: 'demo-tile-cache',
+            source: 'tile-cache',
+            friendlyName: 'Map tiles (demo)',
+            message: 'Demo mode: Map tiles are offline. Remove ?demo=tile-error to clear.',
+            detail: 'Injected via ?demo=tile-error.',
+            timestamp: Date.now(),
+            canRetry: false
+        };
+    }, []);
+
     return {
         ...tileCacheState,
+        error: tileCacheState.error ?? demoTileError,
         retry
     };
 }
