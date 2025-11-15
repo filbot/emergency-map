@@ -267,6 +267,12 @@ export default function EmergencyMap({ dataCollection = [] } = {}) {
             return;
         }
 
+        mapInstance.easeTo({
+            center: [DEFAULT_CENTER.lng, DEFAULT_CENTER.lat],
+            zoom: DEFAULT_ZOOM,
+            duration: 0
+        });
+
         const hasIncidents = fireIncidents.length > 0 || policeIncidents.length > 0;
         if (!hasIncidents) {
             markersRef.current.forEach(({ marker }) => marker.remove());
