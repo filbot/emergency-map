@@ -17,13 +17,13 @@ export async function registerTileCacheServiceWorker(swPath = `${import.meta.env
         return registration;
     } catch (error) {
         console.error('Failed to register tile cache service worker', error);
-        return undefined;
+        throw error;
     }
 }
 
 export async function prefetchTiles(options = {}) {
     if (typeof window === 'undefined' || !('caches' in window)) {
-        return;
+        return false;
     }
 
     const {
@@ -35,7 +35,7 @@ export async function prefetchTiles(options = {}) {
     } = options;
 
     if (!styleUrl || !apiKey) {
-        return;
+        return false;
     }
 
     const cache = await caches.open(cacheName);
@@ -43,20 +43,27 @@ export async function prefetchTiles(options = {}) {
     const styleResponse = await fetchAndCache(fullStyleUrl, cache);
 
     if (!styleResponse) {
-        return;
+        return false;
     }
 
     const styleJson = await styleResponse.clone().json().catch(() => undefined);
     if (!styleJson) {
-        return;
+        return false;
     }
 
     const spriteRequests = buildSpriteRequests(styleJson.sprite, apiKey);
-    await fetchInBatches(spriteRequests, cache);
+    const spritesFetched = await fetchInBatches(spriteRequests, cache);
 
-    const tileTemplates = await collectTileTemplates(styleJson, apiKey, cache);
+    let encounteredError = !spritesFetched;
+
+    const { templates: tileTemplates, encounteredError: templateErrors } = await collectTileTemplates(styleJson, apiKey, cache);
+    encounteredError = encounteredError || templateErrors;
+
     const tileUrls = expandTileTemplates(tileTemplates, bounds, zoomLevels);
-    await fetchInBatches(tileUrls, cache);
+    const tilesFetched = await fetchInBatches(tileUrls, cache);
+    encounteredError = encounteredError || !tilesFetched;
+
+    return !encounteredError;
 }
 
 function ensureKey(url, apiKey) {
@@ -87,16 +94,27 @@ async function fetchAndCache(url, cache) {
 }
 
 async function fetchInBatches(urls, cache, batchSize = 6) {
+    if (!Array.isArray(urls) || urls.length === 0) {
+        return true;
+    }
+
+    let allSuccessful = true;
     const queue = [...urls];
 
     while (queue.length > 0) {
         const batch = queue.splice(0, batchSize);
-        await Promise.all(batch.map((url) => fetchAndCache(url, cache)));
+        const results = await Promise.all(batch.map((url) => fetchAndCache(url, cache)));
+        if (results.some((result) => !result)) {
+            allSuccessful = false;
+        }
     }
+
+    return allSuccessful;
 }
 
 async function collectTileTemplates(styleJson, apiKey, cache) {
     const templates = new Set();
+    let encounteredError = false;
 
     const sources = Object.values(styleJson.sources || {});
     for (const source of sources) {
@@ -109,6 +127,7 @@ async function collectTileTemplates(styleJson, apiKey, cache) {
             const tileJsonUrl = ensureKey(source.url, apiKey);
             const tileJsonResponse = await fetchAndCache(tileJsonUrl, cache);
             if (!tileJsonResponse) {
+                encounteredError = true;
                 continue;
             }
             try {
@@ -116,11 +135,15 @@ async function collectTileTemplates(styleJson, apiKey, cache) {
                 tileJson.tiles?.forEach((template) => templates.add(ensureKey(template, apiKey)));
             } catch (error) {
                 console.error('Failed to parse tilejson', error);
+                encounteredError = true;
             }
         }
     }
 
-    return Array.from(templates);
+    return {
+        templates: Array.from(templates),
+        encounteredError
+    };
 }
 
 function buildSpriteRequests(spriteBaseUrl, apiKey) {

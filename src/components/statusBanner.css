@@ -1,0 +1,146 @@
+.status-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+    margin: 1.5rem 3rem 0;
+    padding: 1.5rem 2rem;
+    background-color: #111827;
+    color: #f9fafb;
+    border: 2px solid #FF3434;
+    border-radius: 12px;
+    box-shadow: 0 0 0 1px rgba(255, 52, 52, 0.2);
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.status-banner__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 9999px;
+    background-color: #FF3434;
+    color: #111827;
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.status-banner__body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.status-banner__title {
+    margin: 0;
+    font-size: 1.5rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.status-banner__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.status-banner__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    border-left: 3px solid rgba(255, 52, 52, 0.6);
+    padding-left: 1rem;
+}
+
+.status-banner__label {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.status-banner__message {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #f3f4f6;
+}
+
+.status-banner__details {
+    font-size: 0.875rem;
+    color: #d1d5db;
+}
+
+.status-banner__details summary {
+    cursor: pointer;
+    outline: none;
+}
+
+.status-banner__details pre {
+    margin: 0.5rem 0 0;
+    padding: 0.75rem;
+    background-color: rgba(15, 23, 42, 0.85);
+    border-radius: 8px;
+    color: #f9fafb;
+    font-family: "IBM Plex Mono", monospace;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.status-banner__action {
+    align-self: flex-start;
+    padding: 0.6rem 1.2rem;
+    background-color: #FF3434;
+    color: #111827;
+    border: none;
+    border-radius: 9999px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.status-banner__action:hover:not(:disabled),
+.status-banner__action:focus-visible:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 8px 18px rgba(255, 52, 52, 0.35);
+}
+
+.status-banner__action:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+}
+
+@media (max-width: 768px) {
+    .status-banner {
+        flex-direction: column;
+        margin: 1rem;
+        padding: 1.25rem 1.5rem;
+    }
+
+    .status-banner__icon {
+        width: 2.5rem;
+        height: 2.5rem;
+        font-size: 1.5rem;
+    }
+
+    .status-banner__title {
+        font-size: 1.25rem;
+    }
+
+    .status-banner__label {
+        font-size: 1rem;
+    }
+
+    .status-banner__message {
+        font-size: 0.95rem;
+    }
+}

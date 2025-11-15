@@ -35,13 +35,47 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
     const [fireDepartmentCallData, setFireDepartmentCallData] = useState(() => readCachedCollection('fire') ?? []);
     const [policeDepartmentCallData] = useState([]);
     const [lastSuccessfulFetch, setLastSuccessfulFetch] = useState(() => lastFetchFromStorage ?? (Date.now() - pollInterval));
+    const [dataErrors, setDataErrors] = useState([]);
     const timeoutRef = useRef(null);
     const abortControllerRef = useRef(null);
     const lastFetchRef = useRef(lastFetchFromStorage ?? 0);
 
     const datasetConfigs = useMemo(() => ([
-        { source: 'fire', ...DATASETS.fire, setter: setFireDepartmentCallData }
+        {
+            source: 'fire',
+            friendlyName: 'Seattle Fire 911 feed',
+            ...DATASETS.fire,
+            setter: setFireDepartmentCallData
+        }
     ]), [setFireDepartmentCallData]);
+
+    const clearDatasetError = useCallback((source) => {
+        setDataErrors((previous) => previous.filter((entry) => entry.source !== source));
+    }, []);
+
+    const recordDatasetError = useCallback((source, friendlyName, error) => {
+        const safeFriendlyName = friendlyName ?? 'data feed';
+        const friendlyMessage = `We're having trouble reaching the ${safeFriendlyName}. We'll keep using the last good update and try again automatically.`;
+        const detail = typeof error?.message === 'string' && error.message.trim().length > 0
+            ? error.message.trim()
+            : null;
+
+        setDataErrors((previous) => {
+            const filtered = previous.filter((entry) => entry.source !== source);
+            return [
+                ...filtered,
+                {
+                    id: `dataset-${source}`,
+                    source,
+                    friendlyName: safeFriendlyName,
+                    message: friendlyMessage,
+                    detail,
+                    timestamp: Date.now(),
+                    canRetry: false
+                }
+            ];
+        });
+    }, []);
 
     const fetchCollection = useCallback(async (config, signal) => {
         const timeWindow = getTimeObject();
@@ -75,6 +109,7 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
                     const collection = Array.isArray(data) ? data : [];
                     config.setter(collection);
                     writeCachedCollection(config.source, collection);
+                    clearDatasetError(config.source);
                 }
                 return true;
             } catch (error) {
@@ -84,6 +119,7 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
 
                 if (attempt === retries) {
                     console.error(`Failed to fetch ${config.source} data`, error);
+                    recordDatasetError(config.source, config.friendlyName, error);
                     return false;
                 }
 
@@ -93,7 +129,7 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
             }
         }
         return false;
-    }, [fetchCollection]);
+    }, [fetchCollection, clearDatasetError, recordDatasetError]);
 
     const fetchAllCollections = useCallback(async (signal) => {
         const results = await Promise.all(datasetConfigs.map((config) => fetchWithRetry(config, signal)));
@@ -178,6 +214,7 @@ export function useEmergencyCalls(pollInterval = FIVE_MINUTES) {
         fireDepartmentCallData,
         policeDepartmentCallData,
         lastSuccessfulFetch,
-        pollInterval
+        pollInterval,
+        dataErrors
     };
 }

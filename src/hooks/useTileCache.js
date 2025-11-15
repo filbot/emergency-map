@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_ZOOM_LEVELS, SEATTLE_BOUNDS, TILE_CACHE_NAME, getStyleBaseUrl } from '../config/mapConfig.js';
 import { prefetchTiles, registerTileCacheServiceWorker } from '../libs/tileCache.js';
 
@@ -20,29 +20,120 @@ export function useTileCache(options = {}) {
         apiKey
     ]);
 
+    const [tileCacheState, setTileCacheState] = useState({
+        isPrefetching: false,
+        lastPrefetch: null,
+        error: null
+    });
+
+    const isMountedRef = useRef(true);
+
+    useEffect(() => () => {
+        isMountedRef.current = false;
+    }, []);
+
+    const performPrefetch = useCallback(async () => {
+        if (!enabled || typeof window === 'undefined') {
+            return false;
+        }
+
+        if (!isMountedRef.current) {
+            return false;
+        }
+
+        setTileCacheState((previous) => ({
+            ...previous,
+            isPrefetching: true
+        }));
+
+        try {
+            await registerTileCacheServiceWorker();
+            const success = await prefetchTiles(memoizedOptions);
+
+            if (!isMountedRef.current) {
+                return success;
+            }
+
+            if (!success) {
+                setTileCacheState({
+                    isPrefetching: false,
+                    lastPrefetch: null,
+                    error: {
+                        id: 'tile-cache',
+                        source: 'tile-cache',
+                        friendlyName: 'Map tiles',
+                        message: 'The map is showing saved imagery while we reconnect to the tile service. We\'ll keep trying in the background.',
+                        detail: null,
+                        timestamp: Date.now(),
+                        canRetry: true
+                    }
+                });
+                return false;
+            }
+
+            setTileCacheState({
+                isPrefetching: false,
+                lastPrefetch: Date.now(),
+                error: null
+            });
+            return true;
+        } catch (error) {
+            if (!isMountedRef.current) {
+                return false;
+            }
+
+            if (error?.name === 'AbortError') {
+                setTileCacheState((previous) => ({
+                    ...previous,
+                    isPrefetching: false
+                }));
+                return false;
+            }
+
+            console.error('Tile prefetch failed', error);
+
+            const detail = typeof error?.message === 'string' && error.message.trim().length > 0
+                ? error.message.trim()
+                : null;
+
+            setTileCacheState({
+                isPrefetching: false,
+                lastPrefetch: null,
+                error: {
+                    id: 'tile-cache',
+                    source: 'tile-cache',
+                    friendlyName: 'Map tiles',
+                    message: 'The map tiles are offline. We\'ll keep retrying automatically.',
+                    detail,
+                    timestamp: Date.now(),
+                    canRetry: true
+                }
+            });
+            return false;
+        }
+    }, [enabled, memoizedOptions]);
+
     useEffect(() => {
         if (!enabled || typeof window === 'undefined') {
+            if (isMountedRef.current) {
+                setTileCacheState((previous) => ({
+                    isPrefetching: false,
+                    lastPrefetch: previous.lastPrefetch,
+                    error: null
+                }));
+            }
             return undefined;
         }
 
-        let cancelled = false;
+        performPrefetch();
 
-        const registerAndPrefetch = async () => {
-            await registerTileCacheServiceWorker();
-            if (cancelled) {
-                return;
-            }
-            try {
-                await prefetchTiles(memoizedOptions);
-            } catch (error) {
-                console.error('Tile prefetch failed', error);
-            }
-        };
+        return undefined;
+    }, [enabled, memoizedOptions, performPrefetch]);
 
-        registerAndPrefetch();
+    const retry = useCallback(() => performPrefetch(), [performPrefetch]);
 
-        return () => {
-            cancelled = true;
-        };
-    }, [enabled, memoizedOptions]);
+    return {
+        ...tileCacheState,
+        retry
+    };
 }
